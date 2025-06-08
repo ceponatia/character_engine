@@ -1,0 +1,372 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+// User management (for future multi-user support)
+model User {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  username  String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // User's characters and sessions
+  characters Character[]
+  sessions   Session[]
+  
+  // User's settings and locations
+  settings   Setting[]
+  locations  Location[]
+  
+  // User's chat sessions
+  chatSessions ChatSession[]
+
+  @@map("users")
+}
+
+// Character definitions - stores the complete character bio
+model Character {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Identity
+  sourceMaterial String?
+  archetype     String
+  chatbotRole   String
+  conceptualAge String?
+
+  // RAG System - Character Bio Management
+  fullBio               String? @db.Text // Complete biography for chunking and embedding
+  corePersonaSummary    String? @db.Text // Condensed personality summary (static context)
+
+  // Visual Avatar
+  description String?
+  attire      String?
+  colors      String[] @default([]) // Native PostgreSQL array
+  features    String?
+  imageUrl    String? // Character image URL
+  avatarImage String? // Uploaded avatar image (base64 or file path)
+
+  // Vocal Style
+  tone        String[] @default([]) // Native PostgreSQL array
+  pacing      String?
+  inflection  String?
+  vocabulary  String?
+
+  // Personality
+  primaryTraits          String[] @default([]) // Native PostgreSQL array
+  secondaryTraits        String[] @default([]) // Native PostgreSQL array
+  quirks                 String[] @default([]) // Native PostgreSQL array
+  interruptionTolerance  String   // "high", "medium", "low"
+
+  // Operational Directives
+  primaryMotivation String?
+  coreGoal         String?
+  secondaryGoals   String[] @default([]) // Native PostgreSQL array
+
+  // Interaction Model - Core Abilities
+  coreAbilities String[] @default([]) // Native PostgreSQL array
+
+  // Interaction Model - Style
+  approach     String?
+  patience     String?
+  demeanor     String?
+  adaptability String?
+
+  // Signature Phrases
+  greeting    String?
+  affirmation String?
+  comfort     String?
+
+  // Default intro message for new stories
+  defaultIntroMessage String?
+
+  // Boundaries
+  forbiddenTopics     String[] @default([]) // Native PostgreSQL array
+  interactionPolicy   String?
+  conflictResolution  String?
+
+  // Relationships
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+
+  // Character instances in sessions
+  characterStates CharacterState[]
+  sessions        Session[]
+  
+  // Character instances in chat sessions
+  chatSessionCharacters ChatSessionCharacter[]
+
+  @@map("characters")
+}
+
+// Session management - persistent chat sessions
+model Session {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isActive  Boolean  @default(true)
+
+  // Session metadata
+  currentDay    Int     @default(1)
+  currentTime   String  @default("morning") // "morning", "early_afternoon", "evening", "night"
+  currentScene  String? // Current location/scene
+  
+  // Environment state
+  weather   String? @default("clear")
+  lighting  String? @default("natural")
+  ambiance  String?
+
+  // Relationships
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+
+  // Active characters in this session
+  characters      Character[]
+  characterStates CharacterState[]
+  messages        Message[]
+
+  @@map("sessions")
+}
+
+// Character state tracking - dynamic character attributes
+model CharacterState {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Personal State
+  mood        String  @default("neutral")
+  energy      Int     @default(75)
+  cleanliness Int     @default(90)
+  arousal     Int     @default(20)
+  clothing    String[] @default([]) // Native PostgreSQL array
+
+  // Current Context
+  location    String  @default("living_room")
+  lastAction  String?
+  awareOf     String[] @default([]) // Native PostgreSQL array
+
+  // Knowledge Base - character-specific learned information
+  userFacts     String[] @default([]) // Native PostgreSQL array
+  learnedEvents String[] @default([]) // Native PostgreSQL array
+  
+  // Relationships with other characters (stored as JSON for flexibility)
+  otherCharacterRelationships Json? // { "characterId": { "type": "friend", "strength": 0.8 } }
+
+  // Foreign keys
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  characterId String
+  session     Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId   String
+
+  // Ensure one state per character per session
+  @@unique([characterId, sessionId])
+  @@map("character_states")
+}
+
+// Chat messages - conversation history
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  sender    String   // "user" or character name
+  timestamp DateTime @default(now())
+  
+  // Message metadata
+  messageType String @default("chat") // "chat", "action", "narrative", "system"
+  isVisible   Boolean @default(true)
+  
+  // Emotional context for memory storage
+  emotionalWeight Float? @default(0.5) // 0.0 to 1.0 - importance for memory
+  topics          String[] @default([]) // Native PostgreSQL array
+  
+  // Session context
+  dayNumber Int     @default(1)
+  timeOfDay String  @default("morning")
+  location  String?
+
+  // Relationships
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String
+
+  @@map("messages")
+}
+
+// Character memories - pgvector integration for RAG system
+model CharacterMemory {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  
+  // Memory content
+  content     String  @db.Text // The actual memory text chunk
+  summary     String? @db.Text // Compressed summary for older memories
+  memoryType  String  // "bio_chunk", "conversation", "observation", "emotional_event", "factual_knowledge"
+  
+  // Vector embedding for semantic search (1536 dimensions for OpenAI text-embedding-ada-002)
+  embedding   Unsupported("vector(1536)")?
+  
+  // Emotional significance
+  emotionalWeight Float   @default(0.5) // 0.0 to 1.0
+  importance      String  @default("medium") // "low", "medium", "high"
+  
+  // Context when memory was formed
+  dayNumber Int?
+  timeOfDay String?
+  location  String?
+  
+  // Memory relationships
+  relatedCharacters String[] @default([]) // Native PostgreSQL array
+  topics           String[] @default([]) // Native PostgreSQL array
+  
+  // Character this memory belongs to
+  characterId String
+  sessionId   String?
+
+  @@index([characterId])
+  @@index([memoryType])
+  @@map("character_memories")
+}
+
+// Settings and locations - reusable scenario environments
+model Setting {
+  id          String @id @default(cuid())
+  name        String
+  description String
+  plot        String? // Overall scenario plot/story
+  
+  // Setting metadata
+  settingType String @default("general") // "fantasy", "modern", "sci-fi", "historical", "general"
+  timeOfDay   String? // Preferred time for this setting
+  mood        String? // Overall atmosphere/mood of the setting
+  theme       String? // Genre or theme (romantic, adventure, mystery, etc.)
+  imageUrl    String? // Setting image URL (uploaded or placeholder)
+  
+  // Relationships
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+  
+  // Many-to-many with locations
+  settingLocations SettingLocation[]
+  
+  // Chat sessions using this setting
+  chatSessions ChatSession[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+// Individual locations that can be reused across settings
+model Location {
+  id          String @id @default(cuid())
+  name        String
+  description String  // Main description of the location
+  details     String? // Additional details, atmosphere, etc.
+  
+  // Location metadata
+  locationType String @default("room") // "room", "building", "outdoor", "landmark", "vehicle"
+  ambiance     String? // Mood/atmosphere of this specific location
+  lighting     String? // Lighting conditions
+  accessibility String? // How accessible this location is
+  
+  // Relationships
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+  
+  // Many-to-many with settings
+  settingLocations SettingLocation[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("locations")
+}
+
+// Junction table for Setting-Location many-to-many relationship
+model SettingLocation {
+  id String @id @default(cuid())
+  
+  setting   Setting @relation(fields: [settingId], references: [id], onDelete: Cascade)
+  settingId String
+  
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  locationId String
+  
+  // Optional: order of locations in the setting, role in story
+  order        Int     @default(0)
+  roleInSetting String? // "main", "secondary", "background"
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([settingId, locationId])
+  @@map("setting_locations")
+}
+
+// Chat sessions - for story-based conversations (different from general Sessions)
+model ChatSession {
+  id        String   @id @default(cuid())
+  name      String   // Auto-generated or user-defined session name
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastActivity DateTime @default(now())
+  
+  // Session configuration
+  settingId String
+  setting   Setting @relation(fields: [settingId], references: [id], onDelete: Cascade)
+  
+  // Character configurations for this session
+  characters ChatSessionCharacter[]
+  
+  // Chat messages in this session
+  messages ChatMessage[]
+  
+  // Relationships
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String
+
+  @@map("chat_sessions")
+}
+
+// Junction table for ChatSession characters with intro messages
+model ChatSessionCharacter {
+  id           String @id @default(cuid())
+  characterId  String
+  character    Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  chatSessionId String
+  chatSession  ChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
+  introMessage String // Character-specific intro message for this session
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([characterId, chatSessionId])
+  @@map("chat_session_characters")
+}
+
+// Chat messages for story sessions
+model ChatMessage {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  sender    String   // "user" or "character"
+  characterId String? // If sender is character, which character
+  timestamp DateTime @default(now())
+  
+  // Session relationship
+  chatSessionId String
+  chatSession   ChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
+  
+  @@map("chat_messages")
+}

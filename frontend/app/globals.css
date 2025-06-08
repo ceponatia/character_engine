@@ -1,0 +1,177 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dark Romantic Theme Variables */
+:root {
+  /* Primary Palette - Deep romantic colors */
+  --burgundy-50: #fdf2f4;
+  --burgundy-100: #fce7ea;
+  --burgundy-200: #f9d4db;
+  --burgundy-300: #f4b3bf;
+  --burgundy-400: #ec8599;
+  --burgundy-500: #e11d48;
+  --burgundy-600: #be123c;
+  --burgundy-700: #9f1239;
+  --burgundy-800: #881337;
+  --burgundy-900: #7c2d12;
+  --burgundy-950: #451a03;
+
+  /* Secondary Palette - Deep purples */
+  --plum-50: #faf5ff;
+  --plum-100: #f3e8ff;
+  --plum-200: #e9d5ff;
+  --plum-300: #d8b4fe;
+  --plum-400: #c084fc;
+  --plum-500: #a855f7;
+  --plum-600: #9333ea;
+  --plum-700: #7c3aed;
+  --plum-800: #6b21a8;
+  --plum-900: #581c87;
+  --plum-950: #3b0764;
+
+  /* Accent Palette - Rose golds */
+  --rose-50: #fff1f2;
+  --rose-100: #ffe4e6;
+  --rose-200: #fecdd3;
+  --rose-300: #fda4af;
+  --rose-400: #fb7185;
+  --rose-500: #f43f5e;
+  --rose-600: #e11d48;
+  --rose-700: #be123c;
+  --rose-800: #9f1239;
+  --rose-900: #881337;
+  --rose-950: #4c0519;
+
+  /* Neutral Palette - Warm grays */
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+  --slate-950: #020617;
+}
+
+/* Custom Dark Theme */
+.dark {
+  --bg-primary: var(--slate-950);
+  --bg-secondary: var(--slate-900);
+  --bg-accent: var(--slate-800);
+  --text-primary: var(--slate-100);
+  --text-secondary: var(--slate-300);
+  --text-muted: var(--slate-500);
+  --border-color: var(--slate-700);
+  --accent-primary: var(--burgundy-500);
+  --accent-secondary: var(--plum-500);
+  --accent-tertiary: var(--rose-500);
+}
+
+/* Light Theme */
+.light {
+  --bg-primary: var(--slate-50);
+  --bg-secondary: #ffffff;
+  --bg-accent: var(--slate-100);
+  --text-primary: var(--slate-900);
+  --text-secondary: var(--slate-700);
+  --text-muted: var(--slate-500);
+  --border-color: var(--slate-200);
+  --accent-primary: var(--burgundy-600);
+  --accent-secondary: var(--plum-600);
+  --accent-tertiary: var(--rose-600);
+}
+
+/* Custom Components */
+@layer components {
+  .card-romantic {
+    @apply bg-slate-900/50 backdrop-blur-sm border border-slate-700/50 rounded-xl shadow-xl;
+  }
+  
+  .btn-romantic-primary {
+    @apply bg-gradient-to-r from-burgundy-600 to-rose-600 text-white font-medium px-6 py-2.5 rounded-lg 
+           hover:from-burgundy-700 hover:to-rose-700 transform hover:scale-105 transition-all duration-200 
+           shadow-lg hover:shadow-xl;
+  }
+  
+  .btn-romantic-secondary {
+    @apply bg-gradient-to-r from-plum-600 to-purple-600 text-white font-medium px-6 py-2.5 rounded-lg 
+           hover:from-plum-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 
+           shadow-lg hover:shadow-xl;
+  }
+  
+  .btn-romantic-outline {
+    @apply border-2 border-burgundy-500 text-burgundy-400 font-medium px-6 py-2.5 rounded-lg 
+           hover:bg-burgundy-500 hover:text-white transition-all duration-200;
+  }
+  
+  .input-romantic {
+    @apply bg-slate-800/50 border border-slate-600 text-slate-100 rounded-lg px-4 py-3 
+           focus:ring-2 focus:ring-burgundy-500 focus:border-burgundy-500 transition-all duration-200
+           placeholder:text-slate-400;
+  }
+  
+  .toggle-romantic {
+    @apply border-2 border-slate-600 text-slate-300 font-medium px-4 py-2 rounded-lg 
+           hover:border-burgundy-500 hover:text-burgundy-400 transition-all duration-200;
+  }
+  
+  .toggle-romantic.selected {
+    @apply bg-gradient-to-r from-burgundy-600 to-rose-600 border-burgundy-500 text-white 
+           shadow-lg ring-2 ring-burgundy-500/50;
+  }
+  
+  .section-nav {
+    @apply bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-xl p-6 sticky top-6;
+  }
+  
+  .section-nav-item {
+    @apply w-full text-left px-4 py-3 rounded-lg text-slate-300 font-medium transition-all duration-200
+           hover:bg-slate-700/50 hover:text-burgundy-400;
+  }
+  
+  .section-nav-item.active {
+    @apply bg-gradient-to-r from-burgundy-600/20 to-rose-600/20 text-burgundy-400 
+           border border-burgundy-500/30 shadow-lg;
+  }
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--slate-800);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--burgundy-600);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--burgundy-700);
+}
+
+/* Romantic gradient backgrounds */
+.bg-romantic-gradient {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #374151 100%);
+}
+
+.bg-romantic-card {
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.8), rgba(30, 41, 59, 0.6));
+  backdrop-filter: blur(10px);
+}
+
+/* Glow effects */
+.glow-romantic {
+  box-shadow: 0 0 20px rgba(225, 29, 72, 0.3);
+}
+
+.glow-romantic:hover {
+  box-shadow: 0 0 30px rgba(225, 29, 72, 0.5);
+}
