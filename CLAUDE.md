@@ -17,9 +17,20 @@
 
 A sophisticated romantic chatbot framework with dynamic multi-character management, persistent memory, and intelligent character interactions. **Status: Frontend UI + LLM Integration Complete ✅**
 
-**Tech Stack**: Next.js, Node.js/Express + TypeScript, PostgreSQL + Prisma, Ollama v0.9.0 (local LLM)
+**Tech Stack**: Next.js, **[MIGRATING]** Hono + Bun + TypeScript, **[MIGRATING]** Supabase + pgvector + Prisma, Ollama v0.9.0 (local LLM)
 
-## NATIVE POSTGRESQL ARRAY IMPLEMENTATION ✅
+## 🚀 2025 TECH STACK UPGRADE PLAN
+
+### PHASE 1: Supabase + pgvector Migration (HIGH PRIORITY)
+**Target: AI-native database with vector embeddings for character memory**
+
+### PHASE 2: Hono + Bun Backend Migration (HIGH PRIORITY) 
+**Target: 10x performance improvement and edge deployment**
+
+### PHASE 3: Frontend Enhancement (KEEPING Next.js)
+**Target: Integrate with new backend APIs and real-time features**
+
+## CURRENT: NATIVE POSTGRESQL ARRAY IMPLEMENTATION ✅
 
 ### Database Array Handling (Updated June 2025)
 **PostgreSQL now uses native arrays - NO JSON transformation needed!**
@@ -54,6 +65,186 @@ res.json({ characters }); // Arrays remain as arrays throughout
 - **Better performance** - PostgreSQL native array operations
 - **Simpler code** - No JSON.parse/stringify needed anywhere
 - **Future-ready** - Works seamlessly with pgvector for similarity search
+
+## 📋 DETAILED MIGRATION PLAN
+
+### PHASE 1: Supabase + pgvector Setup
+
+#### Prerequisites Installation
+```bash
+# Install Supabase CLI
+npm install -g supabase
+# Or via Bun (for future use)
+bun install -g supabase
+```
+
+#### Migration Steps
+```bash
+# 1. Create Supabase project
+supabase projects create chatbot-ai
+
+# 2. Initialize local Supabase
+supabase init
+
+# 3. Enable pgvector extension
+supabase db enable pgvector
+
+# 4. Update DATABASE_URL in .env
+DATABASE_URL="postgresql://postgres:[password]@[project-ref].supabase.co:5432/postgres"
+
+# 5. Update Prisma schema for vector support
+# Add to schema.prisma:
+# vector Unsupported("vector")?
+
+# 6. Test migration
+npx prisma db push
+npx prisma generate
+```
+
+#### Benefits Gained
+- **AI-Ready**: Native vector storage for character embeddings
+- **Real-time**: Built-in subscriptions for live chat
+- **Managed**: No PostgreSQL maintenance required
+- **Scalable**: Auto-scaling database with connection pooling
+
+### PHASE 2: Hono + Bun Backend Migration
+
+#### Prerequisites Installation
+```bash
+# Install Bun runtime
+curl -fsSL https://bun.sh/install | bash
+
+# Add to path (if needed)
+export PATH="$HOME/.bun/bin:$PATH"
+
+# Install TypeScript definitions
+bun add -d @types/bun typescript
+```
+
+#### Migration Strategy
+```bash
+# 1. Create new Hono backend alongside existing Express
+mkdir backend-hono
+cd backend-hono
+
+# 2. Initialize Hono project
+bun create hono .
+# Choose 'bun' template
+
+# 3. Install dependencies
+bun install hono @hono/zod-validator prisma
+
+# 4. Port Express routes to Hono gradually
+# Start with /api/characters endpoint
+
+# 5. Set up parallel development
+# Express: port 3001 (existing)
+# Hono: port 3002 (new)
+
+# 6. Test performance and compatibility
+# 7. Switch frontend to new backend
+# 8. Deprecate Express backend
+```
+
+#### Performance Gains Expected
+- **10x faster**: Hono benchmarks: 402,820 ops/sec vs Express
+- **52,000 req/sec**: Bun vs 13,254 req/sec Node.js
+- **Edge-ready**: Deploy to Cloudflare Workers/Vercel Edge
+- **Type-safe**: End-to-end TypeScript with automatic inference
+
+### PHASE 3: Frontend Integration (Next.js Enhancement)
+
+#### Real-time Integration
+```typescript
+// Supabase real-time for character chat
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(url, key)
+
+// Subscribe to character message updates
+supabase
+  .channel('character_messages')
+  .on('postgres_changes', 
+    { event: 'INSERT', schema: 'public', table: 'messages' },
+    (payload) => updateChat(payload.new)
+  )
+  .subscribe()
+```
+
+#### API Integration Updates
+```typescript
+// Update API calls to use Hono backend
+const API_BASE = process.env.NODE_ENV === 'production' 
+  ? 'https://your-hono-backend.com/api'
+  : 'http://localhost:3002/api'
+
+// Hono provides automatic type inference
+const response = await fetch(`${API_BASE}/characters`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(characterData)
+})
+```
+
+## 🛠️ INSTALLATION & SETUP GUIDE
+
+### Step 1: Supabase Setup
+1. **Create account**: Visit [supabase.com](https://supabase.com)
+2. **New project**: Create "chatbot-ai" project
+3. **Get credentials**: Copy Project URL and API Key
+4. **Enable pgvector**: Database → Extensions → pgvector
+
+### Step 2: Environment Configuration
+```bash
+# Update .env files
+cp .env.example .env
+
+# Add Supabase credentials
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_anon_key
+DATABASE_URL=your_supabase_db_url
+```
+
+### Step 3: Bun Installation
+```bash
+# Install Bun (if not already installed)
+curl -fsSL https://bun.sh/install | bash
+
+# Verify installation
+bun --version
+```
+
+### Step 4: Migration Testing
+```bash
+# Create migration branch
+git checkout -b migration/supabase-hono
+
+# Test Supabase connection
+npm run db:test-connection
+
+# Test Bun performance
+cd backend-hono && bun run dev
+```
+
+## 🚨 MIGRATION SAFETY PROTOCOLS
+
+### Parallel Development Approach
+- **Keep existing stack running** during migration
+- **Port features incrementally** to reduce risk
+- **A/B test performance** before full switch
+- **Rollback plan** ready at each phase
+
+### Testing Strategy
+1. **Unit tests**: Port existing test suite to new stack
+2. **Integration tests**: API compatibility verification  
+3. **Performance tests**: Benchmark before/after
+4. **User acceptance**: Test with real character interactions
+
+### Risk Mitigation
+- **Database backups**: Before any Supabase migration
+- **Feature flags**: Toggle between old/new backend
+- **Monitoring**: Set up alerts for new infrastructure
+- **Documentation**: Update all guides for new stack
 
 ## File Structure & Key Locations
 
@@ -189,10 +380,18 @@ if (!Array.isArray(data.colors)) {
 - Character CRUD operations with native PostgreSQL arrays
 - **NEW**: Migrated from JSON strings to native PostgreSQL arrays (June 2025)
 
-### 🔄 Next Priorities
-- Vector database memory integration (PostgreSQL + pgvector)
+### 🔄 Next Priorities (Updated Dec 2025)
+- **PHASE 1**: Supabase + pgvector migration (AI-native database)
+- **PHASE 2**: Hono + Bun backend migration (10x performance)
+- **PHASE 3**: Real-time chat with vector memory integration
 - Multi-character conversations (up to 3 simultaneous)
-- Session save/load functionality
-- Character memory isolation system
+- Session save/load functionality with vector search
 
-**Database now uses native arrays - no JSON transformation needed anywhere!**
+### 📋 Migration Readiness Status
+- ✅ **Research complete**: Supabase + pgvector integration strategy
+- ✅ **Research complete**: Hono + Bun performance benchmarks  
+- ✅ **Planning complete**: Detailed migration roadmap with safety protocols
+- 📋 **Next**: Begin Phase 1 - Supabase setup and pgvector enablement
+- 🎯 **Goal**: AI-first architecture with 10x performance and native vector memory
+
+**Current: Native arrays + Migration plan ready for 2025 AI-first stack!**
