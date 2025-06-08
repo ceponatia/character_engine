@@ -134,3 +134,11 @@ backend/uploads/*
 *.Zone.Identifier
 
 node_modules
+
+# Ollama files
+ollama-*
+lib/ollama/
+**/ollama/**
+*.tgz
+*.so
+*.so.*
