@@ -150,3 +150,7 @@ backend/bin/
 # Documentation files (Claude-generated)
 *.md
 !README.md
+
+# Git scripts with tokens (security)
+git-push-with-token.sh
+.git-credentials
