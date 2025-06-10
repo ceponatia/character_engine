@@ -147,9 +147,15 @@ lib/ollama/
 backend/lib/
 backend/bin/
 
-# Documentation files (Claude-generated)
+# Documentation files (Claude-generated) - exclude from repository but keep locally
 *.md
 !README.md
+!backend/README.md
+
+# LOCAL DEVELOPMENT FILES - NEVER COMMIT THESE (but keep locally)
+# These files should exist locally but not be tracked by git
+.local-docs/
+# Use: git update-index --skip-worktree filename to protect from git operations
 
 # Git scripts with tokens (security)
 git-push-with-token.sh
