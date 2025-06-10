@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { supabase } from '../utils/supabase-db';
+import { transformGeneric, transformArray } from '../utils/field-transformer';
 
 const settingLocations = new Hono();
 
@@ -33,7 +34,9 @@ settingLocations.get('/', async (c) => {
       return c.json({ error: 'Failed to fetch setting-locations' }, 500);
     }
     
-    return c.json({ settingLocations: settingLocations || [] });
+    // Transform to camelCase for frontend
+    const transformedData = transformArray(settingLocations || [], transformGeneric);
+    return c.json({ settingLocations: transformedData });
   } catch (error) {
     console.error('Setting-locations API error:', error);
     return c.json({ error: 'Internal server error' }, 500);
@@ -60,7 +63,7 @@ settingLocations.post('/', async (c) => {
       return c.json({ error: 'Failed to create setting-location' }, 500);
     }
     
-    return c.json({ settingLocation }, 201);
+    return c.json({ settingLocation: transformGeneric(settingLocation) }, 201);
   } catch (error) {
     console.error('Create setting-location API error:', error);
     return c.json({ error: 'Internal server error' }, 500);

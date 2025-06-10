@@ -16,6 +16,7 @@ import {
 } from '../middleware/error-handler';
 import { createRateLimit } from '../middleware/rate-limit';
 import SupabaseDB from '../utils/supabase-db';
+import { transformCharacter, transformCharacterSummary, transformCharacterMemory, transformArray } from '../utils/field-transformer';
 import type { CharacterInsert, Character } from '../types/supabase';
 
 const app = new Hono();
@@ -47,13 +48,15 @@ app.get('/', asyncHandler(async (c) => {
     order
   });
   
+  const transformedCharacters = transformArray(characters, transformCharacterSummary);
+  
   return c.json({
     success: true,
-    data: characters,
+    data: transformedCharacters,
     pagination: {
       page,
       limit,
-      total: characters.length
+      total: transformedCharacters.length
     }
   });
 }));
@@ -78,7 +81,7 @@ app.get('/:id',
     
     return c.json({
       success: true,
-      data: character
+      data: transformCharacter(character)
     });
   })
 );
@@ -101,13 +104,7 @@ app.post('/',
     
     return c.json({
       success: true,
-      data: {
-        id: character.id,
-        name: character.name,
-        archetype: character.archetype,
-        chatbot_role: character.chatbot_role,
-        created_at: character.created_at
-      }
+      data: transformCharacterSummary(character)
     }, 201);
   })
 );
@@ -136,7 +133,7 @@ app.put('/:id',
     
     return c.json({
       success: true,
-      data: updatedCharacter
+      data: transformCharacter(updatedCharacter)
     });
   })
 );
@@ -187,7 +184,7 @@ app.get('/:id/memories',
     
     return c.json({
       success: true,
-      data: memories
+      data: transformArray(memories, transformCharacterMemory)
     });
   })
 );
@@ -222,7 +219,7 @@ app.post('/:id/memories',
     
     return c.json({
       success: true,
-      data: memory
+      data: transformCharacterMemory(memory)
     }, 201);
   })
 );
@@ -254,7 +251,7 @@ app.post('/:id/memories/search',
     
     return c.json({
       success: true,
-      data: memories
+      data: transformArray(memories, transformCharacterMemory)
     });
   })
 );

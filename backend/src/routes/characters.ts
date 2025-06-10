@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import SupabaseDB from '../utils/supabase-db';
+import { transformCharacter, transformCharacterSummary, transformArray } from '../utils/field-transformer';
 import type { CharacterInsert } from '../types/supabase';
 
 const app = new Hono();
@@ -127,12 +128,7 @@ app.post('/', zValidator('json', createCharacterSchema), async (c) => {
 
     return c.json({
       success: true,
-      character: {
-        id: character.id,
-        name: character.name,
-        archetype: character.archetype,
-        chatbot_role: character.chatbot_role
-      }
+      character: transformCharacterSummary(character)
     }, 201);
   } catch (error) {
     console.error('Error creating character:', error);
@@ -149,20 +145,8 @@ app.get('/', async (c) => {
   try {
     const characters = await SupabaseDB.getAllCharacters();
     
-    // Transform to frontend-compatible format
-    const transformedCharacters = characters.map(char => ({
-      id: char.id,
-      name: char.name,
-      archetype: char.archetype,
-      chatbotRole: char.chatbot_role,
-      description: char.description,
-      createdAt: char.created_at,
-      primaryTraits: char.primary_traits,
-      colors: char.colors,
-      tone: char.tone,
-      // Consolidate image fields - prioritize avatar_image over image_url
-      imageUrl: char.avatar_image || char.image_url
-    }));
+    // Transform to frontend-compatible format using centralized transformer
+    const transformedCharacters = transformArray(characters, transformCharacterSummary);
 
     return c.json({ characters: transformedCharacters });
   } catch (error) {
@@ -186,65 +170,8 @@ app.get('/:id', async (c) => {
       }, 404);
     }
 
-    // Transform to frontend-compatible format (full camelCase conversion)
-    const transformedCharacter = {
-      id: character.id,
-      name: character.name,
-      createdAt: character.created_at,
-      updatedAt: character.updated_at,
-      
-      // Identity
-      sourceMaterial: character.source_material,
-      archetype: character.archetype,
-      chatbotRole: character.chatbot_role,
-      conceptualAge: character.conceptual_age,
-      
-      // Visual Avatar
-      description: character.description,
-      attire: character.attire,
-      colors: character.colors || [],
-      features: character.features,
-      imageUrl: character.avatar_image || character.image_url,
-      avatarImage: character.avatar_image,
-      
-      // Vocal Style
-      tone: character.tone || [],
-      pacing: character.pacing,
-      inflection: character.inflection,
-      vocabulary: character.vocabulary,
-      
-      // Personality
-      primaryTraits: character.primary_traits || [],
-      secondaryTraits: character.secondary_traits || [],
-      quirks: character.quirks || [],
-      interruptionTolerance: character.interruption_tolerance,
-      
-      // Operational Directives
-      primaryMotivation: character.primary_motivation,
-      coreGoal: character.core_goal,
-      secondaryGoals: character.secondary_goals || [],
-      
-      // Interaction Model
-      coreAbilities: character.core_abilities || [],
-      approach: character.approach,
-      patience: character.patience,
-      demeanor: character.demeanor,
-      adaptability: character.adaptability,
-      
-      // Signature Phrases
-      greeting: character.greeting,
-      affirmation: character.affirmation,
-      comfort: character.comfort,
-      defaultIntroMessage: character.default_intro_message,
-      
-      // Boundaries
-      forbiddenTopics: character.forbidden_topics || [],
-      interactionPolicy: character.interaction_policy,
-      conflictResolution: character.conflict_resolution,
-      
-      // Relationships
-      ownerId: character.owner_id
-    };
+    // Transform to frontend-compatible format using centralized transformer
+    const transformedCharacter = transformCharacter(character);
 
     return c.json({ character: transformedCharacter });
   } catch (error) {

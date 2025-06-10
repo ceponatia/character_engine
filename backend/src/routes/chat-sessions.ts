@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { supabase } from '../utils/supabase-db';
 // Types will be defined inline since we're using the new schema structure
 import { safeLLMRequest, resourceCheckMiddleware } from '../middleware/llm-safety';
+import { transformChatSession, transformChatMessage, transformArray } from '../utils/field-transformer';
 
 const app = new Hono();
 
@@ -30,10 +31,13 @@ app.get('/', async (c) => {
 
     if (error) throw error;
 
+    // Transform sessions to frontend format
+    const transformedSessions = transformArray(sessions || [], transformChatSession);
+
     return c.json({ 
       success: true,
-      sessions: sessions || [],
-      count: sessions?.length || 0
+      sessions: transformedSessions,
+      count: transformedSessions.length
     });
   } catch (error: any) {
     console.error('Failed to fetch chat sessions:', error);
@@ -163,7 +167,7 @@ app.post('/', async (c) => {
 
     return c.json({
       success: true,
-      session,
+      session: transformChatSession(session),
       message: 'Chat session created successfully'
     });
   } catch (error: any) {
@@ -239,10 +243,10 @@ app.get('/:id', async (c) => {
 
     return c.json({
       success: true,
-      session: {
+      session: transformChatSession({
         ...sessionWithRelations,
         messages: messages || []
-      }
+      })
     });
   } catch (error: any) {
     console.error('Failed to fetch chat session:', error);
@@ -435,8 +439,8 @@ app.post('/:id/messages', async (c) => {
 
     return c.json({
       success: true,
-      userMessage: savedUserMessage,
-      aiResponse,
+      userMessage: transformChatMessage(savedUserMessage),
+      aiResponse: aiResponse ? transformChatMessage(aiResponse) : null,
       message: 'Message sent successfully'
     });
 
@@ -477,7 +481,7 @@ app.patch('/:id', async (c) => {
 
     return c.json({
       success: true,
-      session,
+      session: transformChatSession(session),
       message: 'Chat session updated successfully'
     });
   } catch (error: any) {
