@@ -1,10 +1,12 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import './custom.css'
+import Header from './components/Header'
+import Footer from './components/Footer'
+import HamburgerMenu from './components/HamburgerMenu'
 
 export const metadata: Metadata = {
-  title: 'Chatbot Test',
-  description: 'Emily-OS',
+  title: 'CharacterEngine AI',
+  description: 'AI-powered character interaction framework',
 }
 
 export default function RootLayout({
@@ -14,8 +16,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body>
-        {children}
+      <body className="min-h-screen bg-romantic-gradient text-slate-100 font-sans antialiased flex flex-col">
+        <Header />
+        <HamburgerMenu />
+        <main className="flex-1">
+          {children}
+        </main>
+        <Footer />
       </body>
     </html>
   )

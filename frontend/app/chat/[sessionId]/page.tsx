@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { io, Socket } from 'socket.io-client';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { getApiUrl } from '../../utils/api-config';
 
 interface Character {
   id: string;
@@ -26,13 +26,10 @@ interface Setting {
 interface ChatSession {
   id: string;
   name: string;
-  settingId: string;
-  setting: Setting;
-  characters: {
-    characterId: string;
-    character: Character;
-    introMessage: string;
-  }[];
+  setting_id: string;
+  character_id: string;
+  characters: Character; // Single character object from Supabase join
+  settings: Setting; // Setting object from Supabase join
   createdAt: string;
   lastActivity: string;
 }
@@ -49,7 +46,6 @@ export default function ChatSessionPage() {
   const params = useParams();
   const sessionId = params.sessionId as string;
   
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -59,50 +55,56 @@ export default function ChatSessionPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch session data
+  // Fetch session data with retry logic
   useEffect(() => {
-    const fetchSession = async () => {
+    const fetchSession = async (retryCount = 0) => {
       try {
-        const response = await fetch(`http://localhost:3001/api/chat-sessions/${sessionId}`);
+        const response = await fetch(getApiUrl(`/api/chat-sessions/${sessionId}`));
         if (response.ok) {
           const data = await response.json();
           setSession(data.session);
           
-          // Set default character to first character
-          if (data.session.characters.length > 0) {
-            setSelectedCharacter(data.session.characters[0].characterId);
+          // Set default character (single character per session now)
+          if (data.session.characters && data.session.characters.id) {
+            setSelectedCharacter(data.session.characters.id);
+          } else if (data.session.character_id) {
+            setSelectedCharacter(data.session.character_id);
           }
           
           // Load existing messages or create intro messages
           if (data.session.messages && data.session.messages.length > 0) {
             setMessages(data.session.messages);
           } else {
-            // Add intro messages as initial messages (for new sessions)
-            const introMessages: ChatMessage[] = [];
-            data.session.characters.forEach((charConfig: any, index: number) => {
-              if (charConfig.introMessage && charConfig.introMessage.trim()) {
-                introMessages.push({
-                  id: `intro-${charConfig.characterId}-${index}`,
-                  text: charConfig.introMessage,
-                  sender: 'character',
-                  characterName: charConfig.character.name,
-                  characterId: charConfig.characterId
-                });
-              }
-            });
-            if (introMessages.length > 0) {
-              setMessages(introMessages);
-            }
+            // Messages are already created by the backend when the session is created
+            setMessages([]);
           }
+          
+          // Successfully loaded session, stop loading
+          setIsLoading(false);
         } else if (response.status === 404) {
+          // If session not found and this is a recent creation, retry after delay
+          if (retryCount < 3) {
+            setTimeout(() => {
+              fetchSession(retryCount + 1);
+            }, 1000 * (retryCount + 1)); // Exponential backoff
+            return;
+          }
           setError('Chat session not found');
+          setIsLoading(false);
         } else {
           setError('Failed to load chat session');
+          setIsLoading(false);
         }
       } catch (error) {
         console.error('Error fetching session:', error);
+        // Retry on network errors
+        if (retryCount < 2) {
+          setTimeout(() => {
+            fetchSession(retryCount + 1);
+          }, 1000 * (retryCount + 1));
+          return;
+        }
         setError('Failed to load chat session');
-      } finally {
         setIsLoading(false);
       }
     };
@@ -112,59 +114,17 @@ export default function ChatSessionPage() {
     }
   }, [sessionId]);
 
-  // Initialize WebSocket
+  // Set connected status (no WebSocket needed for REST)
   useEffect(() => {
-    if (!session) return;
+    if (session) {
+      setIsConnected(true); // Always connected with REST API
+    }
+  }, [session]);
 
-    const socketInstance = io('http://localhost:3001');
+  const sendMessage = async () => {
+    if (!inputMessage.trim() || !selectedCharacter || !session) return;
     
-    socketInstance.on('connect', () => {
-      setIsConnected(true);
-      // Join the session room
-      socketInstance.emit('join_session', sessionId);
-      console.log('Connected to server and joined session');
-    });
-
-    socketInstance.on('disconnect', () => {
-      setIsConnected(false);
-      console.log('Disconnected from server');
-    });
-
-    socketInstance.on('chat_response', (data) => {
-      setIsCharacterTyping(false);
-      const character = session.characters.find(c => c.characterId === data.characterId);
-      setMessages(prev => [...prev, {
-        id: data.messageId || Date.now().toString(),
-        text: data.message,
-        sender: 'character',
-        characterName: character?.character.name || 'Character',
-        characterId: data.characterId
-      }]);
-    });
-
-    socketInstance.on('character_typing', (data) => {
-      setIsCharacterTyping(data.isTyping);
-    });
-
-    socketInstance.on('chat_error', (error) => {
-      setIsCharacterTyping(false);
-      // Only log meaningful errors
-      if (error && error.error && error.error.trim()) {
-        console.warn('Chat system error:', error.error);
-      }
-    });
-
-    setSocket(socketInstance);
-
-    return () => {
-      socketInstance.disconnect();
-    };
-  }, [session, sessionId]);
-
-  const sendMessage = () => {
-    if (!socket || !inputMessage.trim() || !selectedCharacter || !session) return;
-    
-    // Add user message to UI
+    // Add user message to UI immediately
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       text: inputMessage,
@@ -172,17 +132,63 @@ export default function ChatSessionPage() {
     };
     setMessages(prev => [...prev, userMessage]);
     
-    // Send to server with session context
-    socket.emit('chat_message', {
-      sessionId: sessionId,
-      characterId: selectedCharacter,
-      message: inputMessage,
-      userId: socket.id,
-      streaming: false
-    });
-    
+    const messageText = inputMessage;
     setInputMessage('');
     setIsCharacterTyping(true);
+    
+    try {
+      // Send message via REST API
+      const response = await fetch(getApiUrl(`/api/chat-sessions/${sessionId}/messages`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: messageText,
+          role: 'user'
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Add AI response to UI
+        if (data.aiResponse) {
+          const aiMessage: ChatMessage = {
+            id: data.aiResponse.id || Date.now().toString(),
+            text: data.aiResponse.content,
+            sender: 'character',
+            characterName: session.characters?.name || 'Character',
+            characterId: session.characters?.id
+          };
+          setMessages(prev => [...prev, aiMessage]);
+        }
+      } else {
+        console.error('Failed to send message');
+        // Show error message
+        const errorMessage: ChatMessage = {
+          id: Date.now().toString(),
+          text: 'Sorry, I encountered an error. Please try again.',
+          sender: 'character',
+          characterName: session.characters?.name || 'Character',
+          characterId: session.characters?.id
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Show error message
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        text: 'Sorry, I encountered an error. Please try again.',
+        sender: 'character',
+        characterName: session.characters?.name || 'Character',
+        characterId: session.characters?.id
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsCharacterTyping(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -233,7 +239,7 @@ export default function ChatSessionPage() {
                 💬 {session.name}
               </h1>
               <p className="text-slate-400 text-sm mb-2">
-                🏰 {session.setting.name}
+                🏰 {session.settings?.name || 'General Setting'}
               </p>
               <p className="text-slate-400 flex items-center gap-2 text-sm">
                 <span className={isConnected ? 'status-online' : 'status-offline'}></span>
@@ -256,26 +262,7 @@ export default function ChatSessionPage() {
             </div>
           </div>
           
-          {/* Character Selection */}
-          {session.characters.length > 1 && (
-            <div className="character-selection">
-              <label className="block text-slate-300 text-sm font-medium mb-2">
-                💭 Active Character
-              </label>
-              <select
-                value={selectedCharacter}
-                onChange={(e) => setSelectedCharacter(e.target.value)}
-                className="form-select"
-                disabled={!isConnected}
-              >
-                {session.characters.map((charConfig) => (
-                  <option key={charConfig.characterId} value={charConfig.characterId}>
-                    {charConfig.character.name} - {charConfig.character.archetype}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          {/* Character Selection removed - single character per session */}
         </div>
 
         {/* Messages */}
@@ -309,7 +296,7 @@ export default function ChatSessionPage() {
                 <div style={{display: 'flex', justifyContent: 'flex-start'}}>
                   <div className="chat-message character" style={{opacity: 0.7}}>
                     <div className="text-xs text-slate-400 mb-1">
-                      {session.characters.find(c => c.characterId === selectedCharacter)?.character.name || 'Character'}
+                      {session.characters?.name || 'Character'}
                     </div>
                     <span className="typing-indicator">💭 thinking...</span>
                   </div>
@@ -328,13 +315,13 @@ export default function ChatSessionPage() {
             onKeyPress={handleKeyPress}
             placeholder="Continue your story..."
             className="form-input chat-input"
-            disabled={!isConnected || !selectedCharacter || isCharacterTyping}
+            disabled={isCharacterTyping}
           />
           <button
             onClick={sendMessage}
-            disabled={!isConnected || !inputMessage.trim() || !selectedCharacter || isCharacterTyping}
+            disabled={!inputMessage.trim() || isCharacterTyping}
             className="btn btn-primary"
-            style={{opacity: (!isConnected || !inputMessage.trim() || !selectedCharacter || isCharacterTyping) ? 0.5 : 1}}
+            style={{opacity: (!inputMessage.trim() || isCharacterTyping) ? 0.5 : 1}}
           >
             💬 Send
           </button>

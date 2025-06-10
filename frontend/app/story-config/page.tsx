@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { getApiUrl } from '../utils/api-config';
 
 interface Character {
   id: string;
@@ -16,8 +17,9 @@ interface Setting {
   id: string;
   name: string;
   description: string;
-  theme?: string;
-  mood?: string;
+  theme?: string[] | string;
+  mood?: string[] | string;
+  settingType?: string;
   imageUrl?: string;
 }
 
@@ -33,14 +35,20 @@ export default function StoryConfig() {
   const [selectedCharacters, setSelectedCharacters] = useState<CharacterConfig[]>([]);
   const [selectedSetting, setSelectedSetting] = useState<Setting | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreatingStory, setIsCreatingStory] = useState(false);
+
+  const truncateText = (text: string, maxLength: number) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength).trim() + '...';
+  };
 
   // Fetch characters and settings
   useEffect(() => {
     const fetchData = async () => {
       try {
         const [charactersRes, settingsRes] = await Promise.all([
-          fetch('http://localhost:3001/api/characters'),
-          fetch('http://localhost:3001/api/settings')
+          fetch(getApiUrl('/api/characters')),
+          fetch(getApiUrl('/api/settings'))
         ]);
 
         if (charactersRes.ok) {
@@ -94,9 +102,10 @@ export default function StoryConfig() {
   const beginChat = async () => {
     if (!canBeginChat()) return;
     
+    setIsCreatingStory(true);
     try {
       // Create chat session
-      const response = await fetch('http://localhost:3001/api/chat-sessions', {
+      const response = await fetch(getApiUrl('/api/chat-sessions'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -112,15 +121,19 @@ export default function StoryConfig() {
 
       if (response.ok) {
         const data = await response.json();
-        // Navigate to the new chat session
-        router.push(`/chat/${data.session.id}`);
+        // Add a small delay to ensure database transaction commits
+        setTimeout(() => {
+          router.push(`/chat/${data.session.id}`);
+        }, 500); // 500ms delay
       } else {
         const errorData = await response.json();
         alert(`Failed to create story: ${errorData.message || 'Unknown error'}`);
+        setIsCreatingStory(false);
       }
     } catch (error) {
       console.error('Error creating chat session:', error);
       alert('Failed to create story. Please try again.');
+      setIsCreatingStory(false);
     }
   };
 
@@ -177,7 +190,7 @@ export default function StoryConfig() {
                 <option value="">Choose a setting...</option>
                 {settings.map((setting) => (
                   <option key={setting.id} value={setting.id}>
-                    {setting.name} - {setting.theme || setting.settingType || 'General'}
+                    {setting.name} - {Array.isArray(setting.theme) ? setting.theme.join(', ') : setting.theme || setting.settingType || 'General'}
                   </option>
                 ))}
               </select>
@@ -194,10 +207,10 @@ export default function StoryConfig() {
                     )}
                   </div>
                   <div className="setting-info">
-                    <h3>{selectedSetting.name}</h3>
-                    <p>{selectedSetting.description}</p>
+                    <h3>{truncateText(selectedSetting.name, 30)}</h3>
+                    <p>{truncateText(selectedSetting.description, 100)}</p>
                     {selectedSetting.theme && (
-                      <span className="setting-tag">Theme: {selectedSetting.theme}</span>
+                      <span className="setting-tag">Theme: {truncateText(Array.isArray(selectedSetting.theme) ? selectedSetting.theme.join(', ') : selectedSetting.theme, 20)}</span>
                     )}
                   </div>
                 </div>
@@ -254,8 +267,8 @@ export default function StoryConfig() {
                       </div>
                     </div>
                     <div className="character-info">
-                      <h3>{character.name}</h3>
-                      <p>{character.archetype}</p>
+                      <h3>{truncateText(character.name, 20)}</h3>
+                      <p>{truncateText(character.archetype, 25)}</p>
                     </div>
                   </div>
                 ))}
@@ -277,8 +290,8 @@ export default function StoryConfig() {
                       />
                     </div>
                     <div className="character-info">
-                      <h4>{charConfig.character.name}</h4>
-                      <p>{charConfig.character.archetype}</p>
+                      <h4>{truncateText(charConfig.character.name, 20)}</h4>
+                      <p>{truncateText(charConfig.character.archetype, 25)}</p>
                     </div>
                     <button 
                       className="btn btn-outline btn-small"
@@ -333,9 +346,9 @@ export default function StoryConfig() {
           <button 
             className="btn btn-primary btn-large"
             onClick={beginChat}
-            disabled={!canBeginChat()}
+            disabled={!canBeginChat() || isCreatingStory}
           >
-            ✨ Begin Story
+            {isCreatingStory ? '⏳ Creating Story...' : '✨ Begin Story'}
           </button>
         </div>
       </div>

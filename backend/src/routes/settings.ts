@@ -1,291 +1,167 @@
-import express, { Request, Response } from 'express';
-import { prisma } from '../utils/database';
+import { Hono } from 'hono';
+import { supabase } from '../utils/supabase-db';
 
-const router = express.Router();
+const settings = new Hono();
 
-// Create a new setting
-router.post('/', async (req: Request, res: Response) => {
+// GET /api/settings - Get all settings
+settings.get('/', async (c) => {
   try {
-    const { name, description, plot, settingType, timeOfDay, mood, theme, imageUrl, locationIds } = req.body;
+    const limit = c.req.query('limit') ? parseInt(c.req.query('limit')!) : undefined;
     
-    // For now, create a default user if none exists (single-user mode)
-    let user = await prisma.user.findFirst();
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          username: 'default_user',
-          email: 'user@chatbot.local'
-        }
-      });
+    let query = supabase
+      .from('settings')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (limit) {
+      query = query.limit(limit);
     }
+    
+    const { data: settings, error } = await query;
+    
+    if (error) {
+      console.error('Failed to fetch settings:', error);
+      return c.json({ error: 'Failed to fetch settings' }, 500);
+    }
+    
+    // Transform snake_case database fields to camelCase for frontend
+    const transformedSettings = settings?.map(setting => ({
+      ...setting,
+      imageUrl: setting.image_url,
+      settingType: setting.setting_type,
+      timeOfDay: setting.time_of_day,
+      createdAt: setting.created_at,
+      updatedAt: setting.updated_at
+    })) || [];
+    
+    return c.json({ settings: transformedSettings });
+  } catch (error) {
+    console.error('Settings API error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
 
-    // Create the setting
-    const setting = await prisma.setting.create({
-      data: {
-        name,
-        description,
-        plot,
-        settingType: settingType || 'general',
-        timeOfDay,
-        mood,
-        theme,
-        imageUrl,
-        ownerId: user.id
-      }
-    });
-
-    // If locationIds provided, create the associations
-    if (locationIds && Array.isArray(locationIds) && locationIds.length > 0) {
-      const settingLocations = await Promise.all(
-        locationIds.map((locationId: string, index: number) =>
-          prisma.settingLocation.create({
-            data: {
-              settingId: setting.id,
-              locationId,
-              order: index
-            }
-          })
+// GET /api/settings/:id - Get setting by ID
+settings.get('/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    
+    const { data: setting, error } = await supabase
+      .from('settings')
+      .select(`
+        *,
+        setting_locations (
+          location_id,
+          locations (*)
         )
-      );
-    }
-
-    // Fetch the complete setting with locations
-    const completeSetting = await prisma.setting.findUnique({
-      where: { id: setting.id },
-      include: {
-        settingLocations: {
-          include: {
-            location: true
-          },
-          orderBy: { order: 'asc' }
-        }
-      }
-    });
-
-    res.status(201).json({
-      success: true,
-      setting: completeSetting
-    });
-
-  } catch (error) {
-    console.error('Setting creation error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create setting',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// Get all settings for the user
-router.get('/', async (req: Request, res: Response) => {
-  try {
-    // For single-user mode, get the first user's settings
-    const user = await prisma.user.findFirst();
-    if (!user) {
-      return res.json({ settings: [] });
-    }
-
-    const settings = await prisma.setting.findMany({
-      where: {
-        ownerId: user.id
-      },
-      include: {
-        settingLocations: {
-          include: {
-            location: {
-              select: {
-                id: true,
-                name: true,
-                locationType: true
-              }
-            }
-          },
-          orderBy: { order: 'asc' }
-        }
-      },
-      orderBy: { updatedAt: 'desc' }
-    });
-
-    res.json({
-      success: true,
-      settings
-    });
-
-  } catch (error) {
-    console.error('Settings fetch error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch settings',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// Get a specific setting by ID with full location details
-router.get('/:id', async (req: Request, res: Response) => {
-  try {
-    const setting = await prisma.setting.findUnique({
-      where: {
-        id: req.params.id
-      },
-      include: {
-        settingLocations: {
-          include: {
-            location: true
-          },
-          orderBy: { order: 'asc' }
-        }
-      }
-    });
-
-    if (!setting) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Setting not found' 
-      });
-    }
-
-    res.json({
-      success: true,
-      setting
-    });
-
-  } catch (error) {
-    console.error('Setting fetch error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch setting',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// Update a setting
-router.put('/:id', async (req: Request, res: Response) => {
-  try {
-    const { name, description, plot, settingType, timeOfDay, mood, theme, imageUrl } = req.body;
+      `)
+      .eq('id', id)
+      .single();
     
-    const setting = await prisma.setting.update({
-      where: { id: req.params.id },
-      data: {
-        name,
-        description,
-        plot,
-        settingType,
-        timeOfDay,
-        mood,
-        theme,
-        imageUrl
-      },
-      include: {
-        settingLocations: {
-          include: {
-            location: true
-          },
-          orderBy: { order: 'asc' }
-        }
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return c.json({ error: 'Setting not found' }, 404);
       }
-    });
-
-    res.json({
-      success: true,
-      setting
-    });
-
-  } catch (error) {
-    console.error('Setting update error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update setting',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// Delete a setting
-router.delete('/:id', async (req: Request, res: Response) => {
-  try {
-    // First delete all setting-location associations
-    await prisma.settingLocation.deleteMany({
-      where: { settingId: req.params.id }
-    });
-
-    // Then delete the setting
-    await prisma.setting.delete({
-      where: { id: req.params.id }
-    });
-
-    res.json({
-      success: true,
-      message: 'Setting deleted successfully'
-    });
-
-  } catch (error) {
-    console.error('Setting deletion error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to delete setting',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// Add location to setting
-router.post('/:id/locations', async (req: Request, res: Response) => {
-  try {
-    const { locationId, order, roleInSetting } = req.body;
+      console.error('Failed to fetch setting:', error);
+      return c.json({ error: 'Failed to fetch setting' }, 500);
+    }
     
-    const settingLocation = await prisma.settingLocation.create({
-      data: {
-        settingId: req.params.id,
-        locationId,
-        order: order || 0,
-        roleInSetting
-      },
-      include: {
-        location: true
-      }
-    });
-
-    res.status(201).json({
-      success: true,
-      settingLocation
-    });
-
+    // Transform snake_case database fields to camelCase for frontend
+    const transformedSetting = {
+      ...setting,
+      imageUrl: setting.image_url,
+      settingType: setting.setting_type,
+      timeOfDay: setting.time_of_day,
+      createdAt: setting.created_at,
+      updatedAt: setting.updated_at,
+      // Transform the many-to-many relationship to simple locations array
+      locations: setting.setting_locations?.map((sl: any) => ({
+        ...sl.locations,
+        // Transform location fields to camelCase
+        settingId: sl.locations.setting_id,
+        createdAt: sl.locations.created_at,
+        updatedAt: sl.locations.updated_at
+      })) || []
+    };
+    
+    return c.json({ setting: transformedSetting });
   } catch (error) {
-    console.error('Setting location creation error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to add location to setting',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
+    console.error('Setting by ID API error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
   }
 });
 
-// Remove location from setting
-router.delete('/:id/locations/:locationId', async (req: Request, res: Response) => {
+// POST /api/settings - Create new setting
+settings.post('/', async (c) => {
   try {
-    await prisma.settingLocation.deleteMany({
-      where: {
-        settingId: req.params.id,
-        locationId: req.params.locationId
-      }
-    });
-
-    res.json({
-      success: true,
-      message: 'Location removed from setting successfully'
-    });
-
+    const settingData = await c.req.json();
+    
+    const { data: setting, error } = await supabase
+      .from('settings')
+      .insert(settingData)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Failed to create setting:', error);
+      return c.json({ error: 'Failed to create setting' }, 500);
+    }
+    
+    return c.json({ setting }, 201);
   } catch (error) {
-    console.error('Setting location removal error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to remove location from setting',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
+    console.error('Create setting API error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
   }
 });
 
-export default router;
+// PUT /api/settings/:id - Update setting
+settings.put('/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const updates = await c.req.json();
+    
+    const { data: setting, error } = await supabase
+      .from('settings')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return c.json({ error: 'Setting not found' }, 404);
+      }
+      console.error('Failed to update setting:', error);
+      return c.json({ error: 'Failed to update setting' }, 500);
+    }
+    
+    return c.json({ setting });
+  } catch (error) {
+    console.error('Update setting API error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// DELETE /api/settings/:id - Delete setting
+settings.delete('/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    
+    const { error } = await supabase
+      .from('settings')
+      .delete()
+      .eq('id', id);
+    
+    if (error) {
+      console.error('Failed to delete setting:', error);
+      return c.json({ error: 'Failed to delete setting' }, 500);
+    }
+    
+    return c.json({ message: 'Setting deleted successfully' });
+  } catch (error) {
+    console.error('Delete setting API error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+export default settings;

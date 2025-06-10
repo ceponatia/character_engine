@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import Link from 'next/link';
-import Sidebar from './Sidebar';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { getApiUrl } from '../utils/api-config';
 
 interface CharacterFormData {
   // Identity
@@ -95,13 +96,91 @@ const tones = [
   'Sophisticated', 'Casual', 'Encouraging'
 ];
 
-export default function CharacterBuilder() {
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<CharacterFormData>();
+function CharacterBuilderContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get('edit');
+  const isEditMode = !!editId;
+  
+  const { register, handleSubmit, watch, setValue, formState: { errors }, reset } = useForm<CharacterFormData>();
   const [activeSection, setActiveSection] = useState('identity');
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [selectedTraits, setSelectedTraits] = useState<string[]>([]);
   const [selectedTones, setSelectedTones] = useState<string[]>([]);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Load character data if in edit mode
+  useEffect(() => {
+    if (editId) {
+      fetchCharacterForEdit(editId);
+    }
+  }, [editId]);
+
+  const fetchCharacterForEdit = async (characterId: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(getApiUrl(`/api/characters/${characterId}`));
+      if (response.ok) {
+        const data = await response.json();
+        const character = data.character;
+        
+        // Pre-fill form with existing character data (using camelCase from API)
+        const formData: CharacterFormData = {
+          name: character.name || '',
+          sourceMaterial: character.sourceMaterial || '',
+          archetype: character.archetype || '',
+          chatbotRole: character.chatbotRole || '',
+          conceptualAge: character.conceptualAge || '',
+          description: character.description || '',
+          attire: character.attire || '',
+          colors: character.colors || [],
+          features: character.features || '',
+          avatarImage: character.imageUrl || '',
+          tone: character.tone || [],
+          pacing: character.pacing || '',
+          inflection: character.inflection || '',
+          vocabulary: character.vocabulary || '',
+          primaryTraits: character.primaryTraits || [],
+          secondaryTraits: character.secondaryTraits || [],
+          quirks: character.quirks || [],
+          interruptionTolerance: character.interruptionTolerance || 'medium',
+          primaryMotivation: character.primaryMotivation || '',
+          coreGoal: character.coreGoal || '',
+          secondaryGoals: character.secondaryGoals || [],
+          coreAbilities: character.coreAbilities || [],
+          approach: character.approach || '',
+          patience: character.patience || '',
+          demeanor: character.demeanor || '',
+          adaptability: character.adaptability || '',
+          greeting: character.greeting || '',
+          affirmation: character.affirmation || '',
+          comfort: character.comfort || '',
+          forbiddenTopics: character.forbiddenTopics || [],
+          interactionPolicy: character.interactionPolicy || '',
+          conflictResolution: character.conflictResolution || ''
+        };
+
+        reset(formData);
+        setSelectedColors(character.colors || []);
+        setSelectedTraits([...(character.primaryTraits || []), ...(character.secondaryTraits || [])]);
+        setSelectedTones(character.tone || []);
+        
+        if (character.imageUrl) {
+          setAvatarPreview(character.imageUrl);
+        }
+      } else {
+        alert('Failed to load character for editing');
+        router.push('/characters');
+      }
+    } catch (error) {
+      console.error('Error loading character:', error);
+      alert('Failed to load character for editing');
+      router.push('/characters');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const onSubmit = async (data: CharacterFormData) => {
     const characterData = {
@@ -131,16 +210,16 @@ export default function CharacterBuilder() {
         personality: {
           primaryTraits: selectedTraits.slice(0, 3),
           secondaryTraits: selectedTraits.slice(3, 6),
-          quirks: data.quirks ? data.quirks.split('\n').filter(q => q.trim()) : [],
+          quirks: Array.isArray(data.quirks) ? data.quirks : (data.quirks as string)?.split('\n').filter(q => q.trim()) || [],
           interruptionTolerance: data.interruptionTolerance
         },
         operationalDirectives: {
           primaryMotivation: data.primaryMotivation,
           coreGoal: data.coreGoal,
-          secondaryGoals: data.secondaryGoals ? data.secondaryGoals.split('\n').filter(g => g.trim()) : []
+          secondaryGoals: Array.isArray(data.secondaryGoals) ? data.secondaryGoals : (data.secondaryGoals as string)?.split('\n').filter(g => g.trim()) || []
         },
         interactionModel: {
-          coreAbilities: data.coreAbilities ? data.coreAbilities.split('\n').filter(a => a.trim()) : [],
+          coreAbilities: Array.isArray(data.coreAbilities) ? data.coreAbilities : (data.coreAbilities as string)?.split('\n').filter(a => a.trim()) || [],
           style: {
             approach: data.approach,
             patience: data.patience,
@@ -154,7 +233,7 @@ export default function CharacterBuilder() {
           }
         },
         boundaries: {
-          forbiddenTopics: data.forbiddenTopics ? data.forbiddenTopics.split('\n').filter(t => t.trim()) : [],
+          forbiddenTopics: Array.isArray(data.forbiddenTopics) ? data.forbiddenTopics : (data.forbiddenTopics as string)?.split('\n').filter(t => t.trim()) || [],
           interactionPolicy: data.interactionPolicy,
           conflictResolution: data.conflictResolution
         }
@@ -162,27 +241,40 @@ export default function CharacterBuilder() {
     };
     
     try {
-      const response = await fetch('http://localhost:3001/api/characters', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(characterData),
-      });
+      let response;
+      if (isEditMode && editId) {
+        // Update existing character
+        response = await fetch(getApiUrl(`/api/characters/${editId}`), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(characterData),
+        });
+      } else {
+        // Create new character
+        response = await fetch(getApiUrl('/api/characters'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(characterData),
+        });
+      }
 
       const result = await response.json();
 
       if (result.success) {
-        alert(`Character "${result.character.name}" created successfully!`);
-        console.log('Character Created:', result.character);
+        alert(`Character "${result.character.name}" ${isEditMode ? 'updated' : 'created'} successfully!`);
+        console.log(`Character ${isEditMode ? 'Updated' : 'Created'}:`, result.character);
         // Redirect to characters page
         window.location.href = '/characters';
       } else {
-        alert(`Error creating character: ${result.error}`);
-        console.error('Character creation failed:', result);
+        alert(`Error ${isEditMode ? 'updating' : 'creating'} character: ${result.error}`);
+        console.error(`Character ${isEditMode ? 'update' : 'creation'} failed:`, result);
       }
     } catch (error) {
-      alert('Failed to save character. Please check if the backend server is running.');
+      alert(`Failed to ${isEditMode ? 'update' : 'save'} character. Please check if the backend server is running.`);
       console.error('Network error:', error);
     }
   };
@@ -233,124 +325,211 @@ export default function CharacterBuilder() {
     { id: 'boundaries', label: 'Boundaries', icon: '🛡️' }
   ];
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-romantic-gradient">
+        <div className="container mx-auto px-4 py-8">
+          <div className="mb-8">
+            <div className="flex gap-4 mb-6">
+              <Link href="/" className="btn-romantic-outline">
+                ← Home
+              </Link>
+              <Link href="/characters" className="btn-romantic-outline">
+                ← Back to Characters
+              </Link>
+            </div>
+            <h1 className="text-4xl font-bold text-slate-100 mb-4">Loading Character...</h1>
+            <p className="text-slate-300">Please wait while we load the character data for editing</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="page-container">
-      <div className="container">
-        <div className="page-header">
-          <Link href="/characters" className="btn btn-outline">
-            ← Back to Characters
-          </Link>
-          <h1 className="page-title">
-            ✨ Character Builder
+    <div className="min-h-screen bg-romantic-gradient">
+      <div className="container mx-auto px-4 py-6">
+        <div className="mb-6">
+          <div className="flex gap-4 mb-4">
+            <Link href="/" className="btn-romantic-outline">
+              ← Home
+            </Link>
+            <Link href="/characters" className="btn-romantic-outline">
+              ← Back to Characters
+            </Link>
+          </div>
+          <h1 className="text-3xl font-bold text-slate-100 mb-2">
+            {isEditMode ? '✏️ Edit Character' : '✨ Character Builder'}
           </h1>
-          <p className="page-subtitle">
-            Craft your perfect companion with personality, appearance, and interaction style
+          <p className="text-slate-300 text-sm">
+            {isEditMode ? 'Modify your character\'s personality, appearance, and interaction style' : 'Craft your perfect companion with personality, appearance, and interaction style'}
           </p>
         </div>
 
-        <div className="character-builder-layout">
-          <Sidebar
-            sections={sections}
-            activeSection={activeSection}
-            onSectionChange={setActiveSection}
-            avatarPreview={avatarPreview}
-            onImageUpload={handleImageUpload}
-            onRemoveAvatar={removeAvatar}
-          />
+        <div className="grid grid-cols-[280px_1fr_280px] gap-6 max-w-[1800px] mx-auto">
+          {/* Left Column - Avatar Upload */}
+          <div className="space-y-6">
+            <div className="card-romantic p-6">
+              <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
+                📸 Character Avatar
+              </h3>
+              
+              {avatarPreview ? (
+                <div className="space-y-4">
+                  <div className="flex justify-center">
+                    <div className="w-32 h-32 rounded-lg overflow-hidden border-2 border-slate-600">
+                      <img 
+                        src={avatarPreview} 
+                        alt="Avatar preview" 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-green-400 text-sm text-center">Avatar uploaded successfully!</p>
+                  <button
+                    type="button"
+                    onClick={removeAvatar}
+                    className="btn-romantic-outline w-full text-sm"
+                  >
+                    Remove Avatar
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="border-2 border-dashed border-slate-600 rounded-lg p-6 text-center hover:border-rose-500 transition-colors duration-200">
+                    <div className="text-4xl mb-2">🖼️</div>
+                    <p className="text-slate-300 font-medium mb-1">Upload Avatar</p>
+                    <p className="text-slate-500 text-sm mb-4">JPG, PNG, GIF - Max 5MB</p>
+                    <label className="btn-romantic-primary cursor-pointer">
+                      Choose Image
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+              
+              <p className="text-slate-400 text-xs mt-4 flex items-start gap-2">
+                <span>💡</span>
+                <span>This avatar will be displayed in the character gallery and chat interface</span>
+              </p>
+            </div>
+          </div>
 
-          <div className="main-content">
-            <form onSubmit={handleSubmit(onSubmit)} className="card">
+          {/* Center Column - Form Content */}
+          <div>
+            <form onSubmit={handleSubmit(onSubmit)} className="card-romantic p-6">
               
               {/* Identity Section */}
               {activeSection === 'identity' && (
-                <div className="form-section">
-                  <h2 className="section-title">
+                <div className="space-y-4">
+                  <h2 className="text-2xl font-bold text-slate-100 mb-4 flex items-center gap-2">
                     🆔 Character Identity
                   </h2>
                   
-                  <div className="form-group">
-                    <label className="form-label">
-                      Character Name *
-                    </label>
-                    <input
-                      {...register('name', { required: 'Name is required' })}
-                      className="form-input"
-                      placeholder="e.g., Emma, Luna, Alex"
-                    />
-                    {errors.name && <p className="error-text">{errors.name.message}</p>}
-                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Character Name *
+                      </label>
+                      <input
+                        {...register('name', { 
+                          required: 'Name is required',
+                          maxLength: {
+                            value: 50,
+                            message: 'Name must be 50 characters or less'
+                          }
+                        })}
+                        className="input-romantic w-full"
+                        placeholder="e.g., Emma, Luna, Alex"
+                        maxLength={50}
+                      />
+                      {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>}
+                    </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
-                      Source Material
-                    </label>
-                    <input
-                      {...register('sourceMaterial')}
-                      className="input-romantic w-full"
-                      placeholder="e.g., Original creation, Inspired by anime, Based on book character"
-                    />
-                  </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Source Material
+                      </label>
+                      <input
+                        {...register('sourceMaterial')}
+                        className="input-romantic w-full"
+                        placeholder="e.g., Original creation, Inspired by anime, Based on book character"
+                      />
+                    </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
-                      Character Archetype *
-                    </label>
-                    <select
-                      {...register('archetype', { required: 'Archetype is required' })}
-                      className="input-romantic w-full"
-                    >
-                      <option value="">Select an archetype...</option>
-                      {archetypes.map(archetype => (
-                        <option key={archetype} value={archetype}>{archetype}</option>
-                      ))}
-                    </select>
-                    {errors.archetype && <p className="text-red-500 text-sm mt-1">{errors.archetype.message}</p>}
-                  </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Character Archetype *
+                      </label>
+                      <select
+                        {...register('archetype', { required: 'Archetype is required' })}
+                        className="input-romantic w-full"
+                      >
+                        <option value="">Select an archetype...</option>
+                        {archetypes.map(archetype => (
+                          <option key={archetype} value={archetype}>{archetype}</option>
+                        ))}
+                      </select>
+                      {errors.archetype && <p className="text-red-500 text-sm mt-1">{errors.archetype.message}</p>}
+                    </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
-                      Chatbot Role *
-                    </label>
-                    <select
-                      {...register('chatbotRole', { required: 'Role is required' })}
-                      className="input-romantic w-full"
-                    >
-                      <option value="">Select primary role...</option>
-                      {chatbotRoles.map(role => (
-                        <option key={role} value={role}>{role}</option>
-                      ))}
-                    </select>
-                    {errors.chatbotRole && <p className="text-red-500 text-sm mt-1">{errors.chatbotRole.message}</p>}
-                  </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Chatbot Role *
+                      </label>
+                      <select
+                        {...register('chatbotRole', { required: 'Role is required' })}
+                        className="input-romantic w-full"
+                      >
+                        <option value="">Select primary role...</option>
+                        {chatbotRoles.map(role => (
+                          <option key={role} value={role}>{role}</option>
+                        ))}
+                      </select>
+                      {errors.chatbotRole && <p className="text-red-500 text-sm mt-1">{errors.chatbotRole.message}</p>}
+                    </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
-                      Conceptual Age
-                    </label>
-                    <input
-                      {...register('conceptualAge')}
-                      className="input-romantic w-full"
-                      placeholder="e.g., Young adult (22-25), Mature (30s), Ageless wisdom"
-                    />
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Conceptual Age
+                      </label>
+                      <input
+                        {...register('conceptualAge')}
+                        className="input-romantic w-full"
+                        placeholder="e.g., Young adult (22-25), Mature (30s), Ageless wisdom"
+                      />
+                    </div>
                   </div>
                 </div>
               )}
 
               {/* Appearance Section */}
               {activeSection === 'appearance' && (
-                <div className="space-y-6">
-                  <h2 className="text-3xl font-bold text-slate-100 mb-6 flex items-center gap-2">🎨 Visual Appearance</h2>
+                <div className="space-y-4">
+                  <h2 className="text-2xl font-bold text-slate-100 mb-4 flex items-center gap-2">🎨 Visual Appearance</h2>
                   
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                       Physical Description
                     </label>
                     <textarea
-                      {...register('description')}
+                      {...register('description', {
+                        maxLength: {
+                          value: 120,
+                          message: 'Description must be 120 characters or less'
+                        }
+                      })}
                       rows={4}
                       className="input-romantic w-full"
                       placeholder="Describe physical appearance, height, build, hair, eyes, distinctive features..."
+                      maxLength={120}
                     />
+                    {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description.message}</p>}
                   </div>
 
                   <div>
@@ -400,8 +579,8 @@ export default function CharacterBuilder() {
 
               {/* Voice & Style Section */}
               {activeSection === 'voice' && (
-                <div className="space-y-6">
-                  <h2 className="text-3xl font-bold text-slate-100 mb-6 flex items-center gap-2">🎵 Voice & Communication Style</h2>
+                <div className="space-y-4">
+                  <h2 className="text-2xl font-bold text-slate-100 mb-4 flex items-center gap-2">🎵 Voice & Communication Style</h2>
                   
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -467,8 +646,8 @@ export default function CharacterBuilder() {
 
               {/* Personality Section */}
               {activeSection === 'personality' && (
-                <div className="space-y-6">
-                  <h2 className="text-3xl font-bold text-slate-100 mb-6 flex items-center gap-2">💫 Personality Traits</h2>
+                <div className="space-y-4">
+                  <h2 className="text-2xl font-bold text-slate-100 mb-4 flex items-center gap-2">💫 Personality Traits</h2>
                   
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -526,8 +705,8 @@ export default function CharacterBuilder() {
 
               {/* Goals & Motivation Section */}
               {activeSection === 'goals' && (
-                <div className="space-y-6">
-                  <h2 className="text-3xl font-bold text-slate-100 mb-6 flex items-center gap-2">🎯 Goals & Motivation</h2>
+                <div className="space-y-4">
+                  <h2 className="text-2xl font-bold text-slate-100 mb-4 flex items-center gap-2">🎯 Goals & Motivation</h2>
                   
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -567,8 +746,8 @@ export default function CharacterBuilder() {
 
               {/* Interaction Style Section */}
               {activeSection === 'interaction' && (
-                <div className="space-y-6">
-                  <h2 className="text-3xl font-bold text-slate-100 mb-6 flex items-center gap-2">🤝 Interaction Style</h2>
+                <div className="space-y-4">
+                  <h2 className="text-2xl font-bold text-slate-100 mb-4 flex items-center gap-2">🤝 Interaction Style</h2>
                   
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -689,8 +868,8 @@ export default function CharacterBuilder() {
 
               {/* Boundaries Section */}
               {activeSection === 'boundaries' && (
-                <div className="space-y-6">
-                  <h2 className="text-3xl font-bold text-slate-100 mb-6 flex items-center gap-2">🛡️ Boundaries & Guidelines</h2>
+                <div className="space-y-4">
+                  <h2 className="text-2xl font-bold text-slate-100 mb-4 flex items-center gap-2">🛡️ Boundaries & Guidelines</h2>
                   
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -757,7 +936,9 @@ export default function CharacterBuilder() {
                       setActiveSection(sections[currentIndex - 1].id);
                     }
                   }}
-                  className="btn-romantic-outline disabled:opacity-50"
+                  className={`btn-romantic-outline ${
+                    activeSection === sections[0].id ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                   disabled={activeSection === sections[0].id}
                 >
                   ← Previous
@@ -769,7 +950,7 @@ export default function CharacterBuilder() {
                       type="submit"
                       className="btn-romantic-primary text-lg px-8 py-3"
                     >
-                      ✨ Create Character
+                      {isEditMode ? '✏️ Update Character' : '✨ Create Character'}
                     </button>
                   ) : (
                     <button
@@ -789,8 +970,44 @@ export default function CharacterBuilder() {
               </div>
             </form>
           </div>
+
+          {/* Right Column - Sections Navigation */}
+          <div className="space-y-6">
+            <div className="card-romantic p-6 sticky top-6">
+              <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
+                📚 Character Sections
+              </h3>
+              <nav className="space-y-2">
+                {sections.map((section) => (
+                  <button
+                    key={section.id}
+                    type="button"
+                    onClick={() => setActiveSection(section.id)}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+                      activeSection === section.id
+                        ? 'bg-gradient-to-r from-rose-600/20 to-pink-600/20 text-rose-400 border border-rose-500/30 shadow-lg'
+                        : 'text-slate-300 hover:bg-slate-700/50 hover:text-rose-400 border border-transparent'
+                    }`}
+                  >
+                    <span className="text-base">{section.icon}</span>
+                    <span>{section.label}</span>
+                  </button>
+                ))}
+              </nav>
+            </div>
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CharacterBuilder() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="text-white">Loading character builder...</div>
+    </div>}>
+      <CharacterBuilderContent />
+    </Suspense>
   );
 }

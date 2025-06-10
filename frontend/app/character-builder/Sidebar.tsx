@@ -24,69 +24,77 @@ export default function Sidebar({
   onRemoveAvatar
 }: SidebarProps) {
   return (
-    <div className="sidebar">
+    <div className="space-y-6">
       {/* Avatar Upload Section */}
-      <div className="sidebar-card">
-        <h3 className="sidebar-title">
+      <div className="card-romantic p-6">
+        <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
           📸 Character Avatar
         </h3>
         
         {avatarPreview ? (
-          <div className="avatar-preview">
-            <div className="avatar-image">
-              <img 
-                src={avatarPreview} 
-                alt="Avatar preview" 
-              />
+          <div className="space-y-4">
+            <div className="flex justify-center">
+              <div className="w-32 h-32 rounded-lg overflow-hidden border-2 border-slate-600">
+                <img 
+                  src={avatarPreview} 
+                  alt="Avatar preview" 
+                  className="w-full h-full object-cover"
+                />
+              </div>
             </div>
-            <p className="avatar-success">Avatar uploaded successfully!</p>
+            <p className="text-green-400 text-sm text-center">Avatar uploaded successfully!</p>
             <button
               type="button"
               onClick={onRemoveAvatar}
-              className="btn btn-outline btn-sm"
+              className="btn-romantic-outline w-full text-sm"
             >
               Remove Avatar
             </button>
           </div>
         ) : (
-          <div className="avatar-upload">
-            <div className="upload-content">
-              <div className="upload-icon">🖼️</div>
-              <p className="upload-title">Upload Avatar</p>
-              <p className="upload-subtitle">JPG, PNG, GIF - Max 5MB</p>
+          <div className="space-y-4">
+            <div className="border-2 border-dashed border-slate-600 rounded-lg p-6 text-center hover:border-rose-500 transition-colors duration-200">
+              <div className="text-4xl mb-2">🖼️</div>
+              <p className="text-slate-300 font-medium mb-1">Upload Avatar</p>
+              <p className="text-slate-500 text-sm mb-4">JPG, PNG, GIF - Max 5MB</p>
+              <label className="btn-romantic-primary cursor-pointer">
+                Choose Image
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={onImageUpload}
+                  className="hidden"
+                />
+              </label>
             </div>
-            <label className="btn btn-primary btn-upload">
-              Choose Image
-              <input
-                type="file"
-                accept="image/*"
-                onChange={onImageUpload}
-                style={{ display: 'none' }}
-              />
-            </label>
           </div>
         )}
         
-        <p className="avatar-hint">
-          💡 This avatar will be displayed in the character gallery and chat interface
+        <p className="text-slate-400 text-xs mt-4 flex items-start gap-2">
+          <span>💡</span>
+          <span>This avatar will be displayed in the character gallery and chat interface</span>
         </p>
       </div>
 
       {/* Navigation Menu */}
-      <div className="sidebar-card">
-        <h3 className="sidebar-title">
+      <div className="card-romantic p-6">
+        <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
           📚 Character Sections
         </h3>
-        <nav className="sidebar-nav">
+        <nav className="space-y-2">
           {sections.map((section) => (
             <button
               key={section.id}
               type="button"
               onClick={() => onSectionChange(section.id)}
-              className={`nav-button ${activeSection === section.id ? 'active' : ''}`}
+              className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-all duration-200 flex items-center gap-3 ${
+                activeSection === section.id
+                  ? 'bg-gradient-to-r from-rose-600/20 to-pink-600/20 text-rose-400 border border-rose-500/30 shadow-lg'
+                  : 'text-slate-300 hover:bg-slate-700/50 hover:text-rose-400 border border-transparent'
+              }`}
             >
-              <span className="nav-icon">{section.icon}</span>
-              <span className="nav-label">{section.label}</span>
+              <span className="text-lg">{section.icon}</span>
+              <span>{section.label}</span>
             </button>
           ))}
         </nav>

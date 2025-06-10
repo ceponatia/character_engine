@@ -22,6 +22,22 @@ cleanup() {
 # Set up cleanup on script exit
 trap cleanup SIGINT SIGTERM EXIT
 
+# Start Ollama server if not running
+echo "🤖 Starting Ollama server..."
+if ! pgrep -x "ollama" > /dev/null; then
+    ollama serve > /dev/null 2>&1 &
+    sleep 3
+    echo "🤖 Ollama server started"
+else
+    echo "🤖 Ollama server already running"
+fi
+
+# Load Pygmalion2 model
+echo "🧠 Loading Pygmalion2-7B model..."
+ollama run pygmalion2-7b --keepalive 0 > /dev/null 2>&1 &
+sleep 2
+echo "🧠 Pygmalion2-7B model loaded and ready"
+
 # Check if directories exist
 if [ ! -d "backend" ]; then
     echo "❌ Error: backend directory not found"
@@ -33,23 +49,49 @@ if [ ! -d "frontend" ]; then
     exit 1
 fi
 
+# Check if backend port is available
+if lsof -i:3002 >/dev/null 2>&1; then
+    echo "❌ Port 3002 is already in use! Run ./kill-dev-servers.sh first"
+    lsof -i:3002
+    exit 1
+fi
+
 # Start backend server
 echo "📦 Starting backend server..."
 cd backend
-npm run dev > ../backend.log 2>&1 &
+
+# Check if bun is available, otherwise use npm
+if command -v bun >/dev/null 2>&1; then
+    echo "📦 Using Bun runtime..."
+    bun run dev > ../backend.log 2>&1 &
+else
+    echo "📦 Using npm runtime..."
+    npm run dev > ../backend.log 2>&1 &
+fi
+
 BACKEND_PID=$!
 cd ..
 
-# Wait a moment for backend to start and capture port
-sleep 3
+# Wait for backend to start and capture port
+echo "⏳ Waiting for backend to start..."
+sleep 5
 
-# Extract backend port from logs
-BACKEND_PORT=$(grep -o "port [0-9]*" backend.log | grep -o "[0-9]*" | head -1)
-if [ -z "$BACKEND_PORT" ]; then
-    BACKEND_PORT="3001"  # Default fallback
+# Check if backend process is still running
+if ! kill -0 $BACKEND_PID 2>/dev/null; then
+    echo "❌ Backend process died! Check logs:"
+    if [ -f "backend.log" ]; then
+        tail -20 backend.log
+    fi
+    exit 1
 fi
 
-echo "📦 Backend started on port $BACKEND_PORT"
+# Extract backend port from logs (updated for Hono output)
+BACKEND_PORT=$(grep -o "port [0-9]*\|:[0-9]*" backend.log | grep -o "[0-9]*" | head -1)
+if [ -z "$BACKEND_PORT" ]; then
+    BACKEND_PORT="3002"  # Updated default for Hono
+fi
+
+echo "📦 Backend started on port $BACKEND_PORT (PID: $BACKEND_PID)"
 
 # Start frontend server
 echo "🎨 Starting frontend server..."

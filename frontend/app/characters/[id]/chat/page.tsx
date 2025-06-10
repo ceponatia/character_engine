@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import type { Socket } from 'socket.io-client';
+import { getApiUrl, getApiBaseUrl } from '../../../utils/api-config';
 
 interface Character {
   id: string;
@@ -70,7 +71,7 @@ export default function ChatPage() {
 
   const fetchCharacter = async () => {
     try {
-      const response = await fetch(`http://localhost:3001/api/characters/${characterId}`);
+      const response = await fetch(getApiUrl(`/api/characters/${characterId}`));
       const data = await response.json();
       
       if (response.ok) {
@@ -115,7 +116,7 @@ export default function ChatPage() {
       localStorage.removeItem(STORAGE_KEY);
 
       // Clear backend conversation history
-      await fetch(`http://localhost:3001/api/characters/${characterId}/clear-history`, {
+      await fetch(getApiUrl(`/api/characters/${characterId}/clear-history`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -135,7 +136,7 @@ export default function ChatPage() {
     if (typeof window === 'undefined') return;
     
     import('socket.io-client').then(({ io }) => {
-      const socket = io('http://localhost:3001');
+      const socket = io(getApiBaseUrl());
       socketRef.current = socket;
 
       socket.on('connect', () => {
@@ -413,7 +414,7 @@ export default function ChatPage() {
             
             {/* Template Variables Hint */}
             <div className="mt-2 text-xs text-slate-500">
-              💡 Use <code className="bg-slate-800 px-1 rounded">{{user}}</code>, <code className="bg-slate-800 px-1 rounded">{{character_name}}</code>, <code className="bg-slate-800 px-1 rounded">{{location}}</code>, <code className="bg-slate-800 px-1 rounded">{{time_of_day}}</code> for dynamic text
+              💡 Use <code className="bg-slate-800 px-1 rounded">{'{{user}}'}</code>, <code className="bg-slate-800 px-1 rounded">{'{{character_name}}'}</code>, <code className="bg-slate-800 px-1 rounded">{'{{location}}'}</code>, <code className="bg-slate-800 px-1 rounded">{'{{time_of_day}}'}</code> for dynamic text
             </div>
             
             {!isConnected && (

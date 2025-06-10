@@ -142,3 +142,7 @@ lib/ollama/
 *.tgz
 *.so
 *.so.*
+
+# Documentation files (Claude-generated)
+*.md
+!README.md

@@ -1,252 +1,314 @@
-import express, { Request, Response } from 'express';
-import { prisma } from '../utils/database';
-import { characterEngine } from '../services/character-engine';
+import { Hono } from 'hono';
+import { z } from 'zod';
+import { zValidator } from '@hono/zod-validator';
+import SupabaseDB from '../utils/supabase-db';
+import type { CharacterInsert } from '../types/supabase';
 
-const router = express.Router();
+const app = new Hono();
+
+// Character creation validation schema
+const createCharacterSchema = z.object({
+  characterBio: z.object({
+    name: z.string().min(1),
+    identity: z.object({
+      archetype: z.string().default(''),
+      chatbotRole: z.string().default(''),
+      sourceMaterial: z.string().optional(),
+      conceptualAge: z.string().optional(),
+    }).optional(),
+    presentation: z.object({
+      visualAvatar: z.object({
+        description: z.string().optional(),
+        attire: z.string().optional(),
+        colors: z.array(z.string()).default([]),
+        features: z.string().optional(),
+        avatarImage: z.string().optional(),
+      }).optional(),
+      vocalStyle: z.object({
+        tone: z.array(z.string()).default([]),
+        pacing: z.string().optional(),
+        inflection: z.string().optional(),
+        vocabulary: z.string().optional(),
+      }).optional(),
+    }).optional(),
+    personality: z.object({
+      primaryTraits: z.array(z.string()).default([]),
+      secondaryTraits: z.array(z.string()).default([]),
+      quirks: z.array(z.string()).default([]),
+      interruptionTolerance: z.string().default('medium'),
+    }).optional(),
+    operationalDirectives: z.object({
+      primaryMotivation: z.string().optional(),
+      coreGoal: z.string().optional(),
+      secondaryGoals: z.array(z.string()).default([]),
+    }).optional(),
+    interactionModel: z.object({
+      coreAbilities: z.array(z.string()).default([]),
+      style: z.object({
+        approach: z.string().optional(),
+        patience: z.string().optional(),
+        demeanor: z.string().optional(),
+        adaptability: z.string().optional(),
+      }).optional(),
+      signaturePhrases: z.object({
+        greeting: z.string().optional(),
+        affirmation: z.string().optional(),
+        comfort: z.string().optional(),
+      }).optional(),
+    }).optional(),
+    boundaries: z.object({
+      forbiddenTopics: z.array(z.string()).default([]),
+      interactionPolicy: z.string().optional(),
+      conflictResolution: z.string().optional(),
+    }).optional(),
+    defaultIntroMessage: z.string().optional(),
+  })
+});
 
 // Create a new character
-router.post('/', async (req: Request, res: Response) => {
+app.post('/', zValidator('json', createCharacterSchema), async (c) => {
   try {
-    const characterData = req.body.characterBio;
+    const { characterBio } = c.req.valid('json');
     
-    // For now, create a default user if none exists (single-user mode)
-    let user = await prisma.user.findFirst();
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          username: 'default_user',
-          email: 'user@chatbot.local'
-        }
-      });
-    }
+    // Map the nested structure to flat Supabase schema
+    const characterData: CharacterInsert = {
+      name: characterBio.name,
+      archetype: characterBio.identity?.archetype || '',
+      chatbot_role: characterBio.identity?.chatbotRole || '',
+      source_material: characterBio.identity?.sourceMaterial,
+      conceptual_age: characterBio.identity?.conceptualAge,
+      
+      // Visual Avatar
+      description: characterBio.presentation?.visualAvatar?.description,
+      attire: characterBio.presentation?.visualAvatar?.attire,
+      colors: characterBio.presentation?.visualAvatar?.colors || [],
+      features: characterBio.presentation?.visualAvatar?.features,
+      avatar_image: characterBio.presentation?.visualAvatar?.avatarImage,
+      
+      // Vocal Style
+      tone: characterBio.presentation?.vocalStyle?.tone || [],
+      pacing: characterBio.presentation?.vocalStyle?.pacing,
+      inflection: characterBio.presentation?.vocalStyle?.inflection,
+      vocabulary: characterBio.presentation?.vocalStyle?.vocabulary,
+      
+      // Personality
+      primary_traits: characterBio.personality?.primaryTraits || [],
+      secondary_traits: characterBio.personality?.secondaryTraits || [],
+      quirks: characterBio.personality?.quirks || [],
+      interruption_tolerance: characterBio.personality?.interruptionTolerance || 'medium',
+      
+      // Operational Directives
+      primary_motivation: characterBio.operationalDirectives?.primaryMotivation,
+      core_goal: characterBio.operationalDirectives?.coreGoal,
+      secondary_goals: characterBio.operationalDirectives?.secondaryGoals || [],
+      
+      // Interaction Model
+      core_abilities: characterBio.interactionModel?.coreAbilities || [],
+      approach: characterBio.interactionModel?.style?.approach,
+      patience: characterBio.interactionModel?.style?.patience,
+      demeanor: characterBio.interactionModel?.style?.demeanor,
+      adaptability: characterBio.interactionModel?.style?.adaptability,
+      
+      // Signature Phrases
+      greeting: characterBio.interactionModel?.signaturePhrases?.greeting,
+      affirmation: characterBio.interactionModel?.signaturePhrases?.affirmation,
+      comfort: characterBio.interactionModel?.signaturePhrases?.comfort,
+      
+      // Default intro message
+      default_intro_message: characterBio.defaultIntroMessage,
+      
+      // Boundaries
+      forbidden_topics: characterBio.boundaries?.forbiddenTopics || [],
+      interaction_policy: characterBio.boundaries?.interactionPolicy,
+      conflict_resolution: characterBio.boundaries?.conflictResolution,
+    };
 
-    const character = await prisma.character.create({
-      data: {
-        name: characterData.name,
-        ownerId: user.id,
-        
-        // Identity
-        sourceMaterial: characterData.identity?.sourceMaterial,
-        archetype: characterData.identity?.archetype || '',
-        chatbotRole: characterData.identity?.chatbotRole || '',
-        conceptualAge: characterData.identity?.conceptualAge,
-        
-        // Visual Avatar
-        description: characterData.presentation?.visualAvatar?.description,
-        attire: characterData.presentation?.visualAvatar?.attire,
-        colors: characterData.presentation?.visualAvatar?.colors || [],
-        features: characterData.presentation?.visualAvatar?.features,
-        avatarImage: characterData.presentation?.visualAvatar?.avatarImage,
-        
-        // Vocal Style
-        tone: characterData.presentation?.vocalStyle?.tone || [],
-        pacing: characterData.presentation?.vocalStyle?.pacing,
-        inflection: characterData.presentation?.vocalStyle?.inflection,
-        vocabulary: characterData.presentation?.vocalStyle?.vocabulary,
-        
-        // Personality
-        primaryTraits: characterData.personality?.primaryTraits || [],
-        secondaryTraits: characterData.personality?.secondaryTraits || [],
-        quirks: characterData.personality?.quirks || [],
-        interruptionTolerance: characterData.personality?.interruptionTolerance || 'medium',
-        
-        // Operational Directives
-        primaryMotivation: characterData.operationalDirectives?.primaryMotivation,
-        coreGoal: characterData.operationalDirectives?.coreGoal,
-        secondaryGoals: characterData.operationalDirectives?.secondaryGoals || [],
-        
-        // Interaction Model
-        coreAbilities: characterData.interactionModel?.coreAbilities || [],
-        approach: characterData.interactionModel?.style?.approach,
-        patience: characterData.interactionModel?.style?.patience,
-        demeanor: characterData.interactionModel?.style?.demeanor,
-        adaptability: characterData.interactionModel?.style?.adaptability,
-        
-        // Signature Phrases
-        greeting: characterData.interactionModel?.signaturePhrases?.greeting,
-        affirmation: characterData.interactionModel?.signaturePhrases?.affirmation,
-        comfort: characterData.interactionModel?.signaturePhrases?.comfort,
-        
-        // Default intro message for new stories
-        defaultIntroMessage: characterData.defaultIntroMessage,
-        
-        // Boundaries
-        forbiddenTopics: characterData.boundaries?.forbiddenTopics || [],
-        interactionPolicy: characterData.boundaries?.interactionPolicy,
-        conflictResolution: characterData.boundaries?.conflictResolution,
-      }
-    });
+    const character = await SupabaseDB.createCharacter(characterData);
 
-    res.status(201).json({
+    return c.json({
       success: true,
       character: {
         id: character.id,
         name: character.name,
         archetype: character.archetype,
-        chatbotRole: character.chatbotRole
+        chatbot_role: character.chatbot_role
       }
-    });
+    }, 201);
   } catch (error) {
     console.error('Error creating character:', error);
-    res.status(500).json({ 
+    return c.json({ 
       success: false, 
       error: 'Failed to create character',
       details: error instanceof Error ? error.message : 'Unknown error'
-    });
+    }, 500);
   }
 });
 
-// Get all characters for the user
-router.get('/', async (req: Request, res: Response) => {
+// Get all characters
+app.get('/', async (c) => {
   try {
-    // For single-user mode, get the first user's characters
-    const user = await prisma.user.findFirst();
-    if (!user) {
-      return res.json({ characters: [] });
-    }
+    const characters = await SupabaseDB.getAllCharacters();
+    
+    // Transform to frontend-compatible format
+    const transformedCharacters = characters.map(char => ({
+      id: char.id,
+      name: char.name,
+      archetype: char.archetype,
+      chatbotRole: char.chatbot_role,
+      description: char.description,
+      createdAt: char.created_at,
+      primaryTraits: char.primary_traits,
+      colors: char.colors,
+      tone: char.tone,
+      // Consolidate image fields - prioritize avatar_image over image_url
+      imageUrl: char.avatar_image || char.image_url
+    }));
 
-    const characters = await prisma.character.findMany({
-      where: {
-        ownerId: user.id
-      },
-      select: {
-        id: true,
-        name: true,
-        archetype: true,
-        chatbotRole: true,
-        description: true,
-        createdAt: true,
-        primaryTraits: true,
-        colors: true,
-        tone: true,
-        avatarImage: true,
-        imageUrl: true
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
-
-    // No parsing needed - arrays are native now
-    return res.json({ characters });
+    return c.json({ characters: transformedCharacters });
   } catch (error) {
     console.error('Error fetching characters:', error);
-    return res.status(500).json({ 
+    return c.json({ 
       success: false, 
       error: 'Failed to fetch characters' 
-    });
+    }, 500);
   }
 });
 
 // Get a specific character by ID
-router.get('/:id', async (req: Request, res: Response) => {
+app.get('/:id', async (c) => {
   try {
-    const character = await prisma.character.findUnique({
-      where: {
-        id: req.params.id
-      }
-    });
+    const character = await SupabaseDB.getCharacterById(c.req.param('id'));
 
     if (!character) {
-      return res.status(404).json({ 
+      return c.json({ 
         success: false, 
         error: 'Character not found' 
-      });
+      }, 404);
     }
 
-    return res.json({ character });
+    // Transform to frontend-compatible format (full camelCase conversion)
+    const transformedCharacter = {
+      id: character.id,
+      name: character.name,
+      createdAt: character.created_at,
+      updatedAt: character.updated_at,
+      
+      // Identity
+      sourceMaterial: character.source_material,
+      archetype: character.archetype,
+      chatbotRole: character.chatbot_role,
+      conceptualAge: character.conceptual_age,
+      
+      // Visual Avatar
+      description: character.description,
+      attire: character.attire,
+      colors: character.colors || [],
+      features: character.features,
+      imageUrl: character.avatar_image || character.image_url,
+      avatarImage: character.avatar_image,
+      
+      // Vocal Style
+      tone: character.tone || [],
+      pacing: character.pacing,
+      inflection: character.inflection,
+      vocabulary: character.vocabulary,
+      
+      // Personality
+      primaryTraits: character.primary_traits || [],
+      secondaryTraits: character.secondary_traits || [],
+      quirks: character.quirks || [],
+      interruptionTolerance: character.interruption_tolerance,
+      
+      // Operational Directives
+      primaryMotivation: character.primary_motivation,
+      coreGoal: character.core_goal,
+      secondaryGoals: character.secondary_goals || [],
+      
+      // Interaction Model
+      coreAbilities: character.core_abilities || [],
+      approach: character.approach,
+      patience: character.patience,
+      demeanor: character.demeanor,
+      adaptability: character.adaptability,
+      
+      // Signature Phrases
+      greeting: character.greeting,
+      affirmation: character.affirmation,
+      comfort: character.comfort,
+      defaultIntroMessage: character.default_intro_message,
+      
+      // Boundaries
+      forbiddenTopics: character.forbidden_topics || [],
+      interactionPolicy: character.interaction_policy,
+      conflictResolution: character.conflict_resolution,
+      
+      // Relationships
+      ownerId: character.owner_id
+    };
+
+    return c.json({ character: transformedCharacter });
   } catch (error) {
     console.error('Error fetching character:', error);
-    return res.status(500).json({ 
+    return c.json({ 
       success: false, 
       error: 'Failed to fetch character' 
-    });
+    }, 500);
   }
 });
 
 // Delete a character
-router.delete('/:id', async (req: Request, res: Response) => {
+app.delete('/:id', async (c) => {
   try {
-    await prisma.character.delete({
-      where: {
-        id: req.params.id
-      }
-    });
+    await SupabaseDB.deleteCharacter(c.req.param('id'));
 
-    res.json({ 
+    return c.json({ 
       success: true, 
       message: 'Character deleted successfully' 
     });
   } catch (error) {
     console.error('Error deleting character:', error);
-    res.status(500).json({ 
+    return c.json({ 
       success: false, 
       error: 'Failed to delete character' 
-    });
+    }, 500);
   }
 });
 
-// Clear conversation history for a specific character
-router.post('/:id/clear-history', async (req: Request, res: Response) => {
+// Character memory routes
+app.get('/:id/memories', async (c) => {
   try {
-    const { userId } = req.body;
-    if (userId) {
-      // Clear specific user's conversation with character
-      characterEngine.clearConversationHistory(req.params.id, userId);
-    } else {
-      // Clear all conversations for character
-      characterEngine.clearConversationHistoryForCharacter(req.params.id);
-    }
-    res.json({ 
-      success: true, 
-      message: `Conversation history cleared for character ${req.params.id}` 
-    });
+    const memories = await SupabaseDB.getCharacterMemories(c.req.param('id'));
+    return c.json({ memories });
   } catch (error) {
-    console.error('Error clearing conversation history:', error);
-    res.status(500).json({ 
+    console.error('Error fetching character memories:', error);
+    return c.json({ 
       success: false, 
-      error: 'Failed to clear conversation history' 
-    });
+      error: 'Failed to fetch character memories' 
+    }, 500);
   }
 });
 
-// Get conversation history for a character and user
-router.get('/:id/history/:userId', async (req: Request, res: Response) => {
+app.post('/:id/memories', async (c) => {
   try {
-    const history = characterEngine.getConversationHistory(req.params.id, req.params.userId);
-    res.json({ 
-      success: true, 
-      history: history.map(msg => ({
-        id: msg.id,
-        content: msg.content,
-        role: msg.role,
-        timestamp: msg.timestamp
-      }))
+    const body = await c.req.json();
+    const memory = await SupabaseDB.addCharacterMemory({
+      characterId: c.req.param('id'),
+      content: body.content,
+      memoryType: body.memoryType || 'conversation',
+      embedding: body.embedding,
+      emotionalWeight: body.emotionalWeight,
+      importance: body.importance,
+      topics: body.topics
     });
+    
+    return c.json({ success: true, memory }, 201);
   } catch (error) {
-    console.error('Error fetching conversation history:', error);
-    res.status(500).json({ 
+    console.error('Error adding character memory:', error);
+    return c.json({ 
       success: false, 
-      error: 'Failed to fetch conversation history' 
-    });
+      error: 'Failed to add character memory' 
+    }, 500);
   }
 });
 
-// Clear all conversation history (debugging endpoint)
-router.post('/clear-all-history', async (req: Request, res: Response) => {
-  try {
-    characterEngine.clearAllConversationHistory();
-    res.json({ 
-      success: true, 
-      message: 'All conversation history cleared' 
-    });
-  } catch (error) {
-    console.error('Error clearing all conversation history:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to clear all conversation history' 
-    });
-  }
-});
-
-export default router;
+export default app;

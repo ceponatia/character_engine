@@ -1,31 +1,3 @@
 {
-  "mcpServers": {
-    "prisma": {
-      "command": "npx",
-      "args": ["-y", "prisma", "mcp"],
-      "env": {
-        "DATABASE_URL": "postgresql://user:password@localhost:5432/rpg_chatbot"
-      }
-    },
-    "postgres": {
-      "command": "npx", 
-      "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://user:password@localhost:5432/rpg_chatbot"]
-    },
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/brian/chatbot"]
-    },
-    "claude-code-server": {
-      "command": "npx",
-      "args": ["-y", "@kunihiros/claude-code-mcp"],
-      "env": {
-        "CLAUDE_BIN": "/home/brian/.nvm/versions/node/v20.19.1/bin/claude",
-        "LOG_LEVEL": "info"
-      }
-    },
-    "sequential-thinking": {
-      "command": "npx",
-      "args": ["-y", "mcp-sequentialthinking-tools"]
-    }
-  }
+  "mcpServers": {}
 }

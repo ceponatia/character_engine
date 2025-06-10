@@ -2,32 +2,23 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { getApiUrl } from './utils/api-config';
+import { truncateText } from './utils/helpers';
+import LibraryCard from './components/UI/LibraryCard';
 
-interface Character {
-  id: string;
-  name: string;
-  archetype: string;
-}
-
-interface Setting {
-  id: string;
-  name: string;
-  description: string;
-}
 
 interface ChatSession {
   id: string;
   name: string;
   lastActivity: string;
+  character_id: string;
+  setting_id: string;
+  createdAt?: string;
   characters: {
-    characterId: string;
-    character: {
-      name: string;
-      archetype: string;
-    };
-    introMessage: string;
-  }[];
-  setting: {
+    name: string;
+    archetype: string;
+  };
+  settings: {
     name: string;
     theme: string;
     settingType: string;
@@ -35,30 +26,17 @@ interface ChatSession {
 }
 
 export default function Home() {
-  const [recentCharacters, setRecentCharacters] = useState<Character[]>([]);
-  const [recentSettings, setRecentSettings] = useState<Setting[]>([]);
   const [activeSessions, setActiveSessions] = useState<ChatSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [storiesSearchTerm, setStoriesSearchTerm] = useState('');
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Fetch recent characters
-        const charactersRes = await fetch('http://localhost:3001/api/characters?limit=4');
-        if (charactersRes.ok) {
-          const charactersData = await charactersRes.json();
-          setRecentCharacters(charactersData.characters || []);
-        }
-
-        // Fetch recent settings
-        const settingsRes = await fetch('http://localhost:3001/api/settings?limit=4');
-        if (settingsRes.ok) {
-          const settingsData = await settingsRes.json();
-          setRecentSettings(settingsData.settings || []);
-        }
-
         // Fetch active chat sessions
-        const sessionsRes = await fetch('http://localhost:3001/api/chat-sessions?limit=6');
+        const sessionsRes = await fetch(getApiUrl('/api/chat-sessions?limit=8'));
         if (sessionsRes.ok) {
           const sessionsData = await sessionsRes.json();
           setActiveSessions(sessionsData.sessions || []);
@@ -74,13 +52,37 @@ export default function Home() {
     fetchDashboardData();
   }, []);
 
+  useEffect(() => {
+    const handleScroll = () => {
+      const footer = document.querySelector('footer');
+      if (footer) {
+        const footerTop = footer.getBoundingClientRect().top;
+        const windowHeight = window.innerHeight;
+        // Show button when footer is visible (starts entering viewport)
+        setShowScrollTop(footerTop <= windowHeight);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+
   if (isLoading) {
     return (
-      <div className="landing-container">
-        <div className="card">
-          <div className="empty-state">
-            <div className="icon">⏳</div>
-            <p>Loading your chatbot world...</p>
+      <div className="min-h-screen p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 rounded-xl p-8">
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">⏳</div>
+              <p className="text-slate-300 text-lg">Loading your chatbot world...</p>
+            </div>
           </div>
         </div>
       </div>
@@ -88,171 +90,107 @@ export default function Home() {
   }
 
   return (
-    <div className="landing-container">
-      {/* Hero Section */}
-      <div className="hero-section">
-        <h1 className="hero-title">
-          ✨ Welcome to Your Romantic Chatbot World
-        </h1>
-        <p className="hero-subtitle">
-          Create characters, design settings, and embark on magical conversations
-        </p>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="quick-actions">
-        <Link href="/story-config" className="action-card primary">
-          <div className="action-icon">🎭</div>
-          <h3>Start New Story</h3>
-          <p>Configure characters and settings for a new adventure</p>
-        </Link>
-
-        <Link href="/chat" className="action-card secondary">
-          <div className="action-icon">💬</div>
-          <h3>Quick Chat</h3>
-          <p>Jump into a simple chat with your characters</p>
-        </Link>
-
-        <Link href="/character-builder" className="action-card secondary">
-          <div className="action-icon">✨</div>
-          <h3>Create Character</h3>
-          <p>Build a new character with personality and traits</p>
-        </Link>
-
-        <Link href="/setting-builder" className="action-card secondary">
-          <div className="action-icon">🏰</div>
-          <h3>Design Setting</h3>
-          <p>Create immersive locations and scenarios</p>
+    <div className="min-h-screen">
+      {/* Begin Adventure Banner - positioned below header with margin */}
+      <div className="max-w-6xl mx-auto mt-8 mb-16 px-8">
+        <Link href="/story-config" className="group block relative h-64 rounded-2xl overflow-hidden border border-slate-700/50 hover:border-rose-500 transition-all duration-300 hover:shadow-2xl hover:shadow-rose-500/30">
+          {/* RPG Background Image */}
+          <div 
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-transform duration-300 group-hover:scale-105"
+            style={{
+              backgroundImage: `url('https://images.unsplash.com/photo-1578662996442-48f60103fc96?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80')`
+            }}
+          />
+          
+          {/* Dark overlay for text readability */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/40 to-transparent" />
+          
+          {/* Text overlay in lower right */}
+          <div className="absolute bottom-8 right-8 text-right">
+            <h2 className="text-4xl font-bold text-white mb-2 drop-shadow-lg">
+              ⚔️ Begin an Adventure!
+            </h2>
+            <p className="text-slate-200 text-lg drop-shadow-md">
+              Configure characters and settings for your next epic journey
+            </p>
+          </div>
         </Link>
       </div>
 
       {/* Dashboard Sections */}
-      <div className="dashboard-sections">
+      <div className="max-w-6xl mx-auto space-y-12 px-8">
         {/* Active Sessions */}
         {activeSessions.length > 0 && (
-          <div className="dashboard-section">
-            <div className="section-header">
-              <h2>🌟 Continue Your Stories</h2>
-              <Link href="/sessions" className="btn btn-outline btn-small">
+          <div className="space-y-6">
+            <div className="mb-6">
+              <h2 className="text-slate-100 text-2xl font-bold mb-6">🌟 Continue Your Stories</h2>
+            </div>
+            
+            {/* Search and View All Button */}
+            <div className="mb-6 flex gap-4 items-center justify-between">
+              <input
+                type="text"
+                placeholder="Search stories by name or character..."
+                value={storiesSearchTerm}
+                onChange={(e) => setStoriesSearchTerm(e.target.value)}
+                className="w-full max-w-md px-4 py-3 bg-slate-800/50 border border-slate-600 text-slate-100 rounded-lg transition-all duration-200 placeholder:text-slate-400 hover:shadow-lg hover:shadow-rose-500/20 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 focus:shadow-xl focus:shadow-rose-500/30"
+              />
+              <Link 
+                href="/library?type=stories" 
+                className="px-4 py-2 rounded-lg font-medium text-sm border border-slate-600 text-slate-300 hover:border-rose-500 hover:text-rose-400 transition-all duration-300 hover:shadow-lg hover:shadow-rose-500/20 whitespace-nowrap"
+              >
                 View All Sessions
               </Link>
             </div>
-            <div className="sessions-grid">
-              {activeSessions.map((session) => (
-                <div key={session.id} className="session-card">
-                  <h3>{session.name}</h3>
-                  <p>Characters: {session.characters.map(c => c.character.name).join(', ')}</p>
-                  <p>Setting: {session.setting.name}</p>
-                  <p className="last-activity">Last active: {session.lastActivity}</p>
-                  <Link href={`/chat/${session.id}`} className="btn btn-primary btn-small">
-                    Continue Story
-                  </Link>
-                </div>
-              ))}
+            <div className="grid grid-cols-4 gap-6 p-4">
+              {activeSessions.filter(session =>
+                session.name.toLowerCase().includes(storiesSearchTerm.toLowerCase()) ||
+                session.characters?.name.toLowerCase().includes(storiesSearchTerm.toLowerCase()) ||
+                session.settings?.name.toLowerCase().includes(storiesSearchTerm.toLowerCase())
+              ).map((session) => {
+                // Generate story image based on setting type and theme
+                const storyImage = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(session.name)}&backgroundColor=1e293b,be123c,9333ea`;
+                
+                return (
+                  <LibraryCard
+                    key={session.id}
+                    image={storyImage}
+                    title={session.name}
+                    subtitle={`Character: ${session.characters?.name || 'Unknown'}`}
+                    tags={[session.settings?.settingType || 'Story', session.settings?.theme || 'Adventure']}
+                    createdAt={session.createdAt || session.lastActivity}
+                    href={`/stories/${session.id}`}
+                  />
+                );
+              })}
             </div>
           </div>
         )}
-
-        {/* Recent Characters */}
-        <div className="dashboard-section">
-          <div className="section-header">
-            <h2>💕 Your Characters</h2>
-            <Link href="/characters" className="btn btn-outline btn-small">
-              View All Characters
-            </Link>
-          </div>
-          
-          {recentCharacters.length > 0 ? (
-            <div className="characters-preview">
-              {recentCharacters.map((character) => (
-                <Link 
-                  key={character.id} 
-                  href={`/characters/${character.id}`}
-                  className="character-preview-card"
-                >
-                  <div className="character-image">
-                    <img 
-                      src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${character.name}`}
-                      alt={character.name}
-                    />
-                  </div>
-                  <div className="character-info">
-                    <h3>{character.name}</h3>
-                    <p>{character.archetype}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state">
-              <div className="icon">💭</div>
-              <p>No characters created yet</p>
-              <Link href="/character-builder" className="btn btn-primary">
-                Create Your First Character
-              </Link>
-            </div>
-          )}
-        </div>
-
-        {/* Recent Settings */}
-        <div className="dashboard-section">
-          <div className="section-header">
-            <h2>🏰 Your Settings</h2>
-            <Link href="/settings" className="btn btn-outline btn-small">
-              View All Settings
-            </Link>
-          </div>
-          
-          {recentSettings.length > 0 ? (
-            <div className="settings-preview">
-              {recentSettings.map((setting) => (
-                <div 
-                  key={setting.id} 
-                  className="setting-preview-card"
-                  onClick={() => {
-                    // TODO: Start new story with this setting
-                    window.location.href = `/story-config?setting=${setting.id}`;
-                  }}
-                >
-                  <div className="setting-image">
-                    <div className="placeholder-image">🏰</div>
-                  </div>
-                  <div className="setting-info">
-                    <h3>{setting.name}</h3>
-                    <p>{setting.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state">
-              <div className="icon">🏰</div>
-              <p>No settings created yet</p>
-              <Link href="/setting-builder" className="btn btn-primary">
-                Create Your First Setting
-              </Link>
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* Navigation Footer */}
-      <div className="navigation-footer">
-        <div className="nav-links">
-          <Link href="/characters" className="nav-link">
-            <span className="nav-icon">💕</span>
-            <span className="nav-label">Characters</span>
-          </Link>
-          <Link href="/settings" className="nav-link">
-            <span className="nav-icon">🏰</span>
-            <span className="nav-label">Settings</span>
-          </Link>
-          <Link href="/locations" className="nav-link">
-            <span className="nav-icon">📍</span>
-            <span className="nav-label">Locations</span>
-          </Link>
-        </div>
-      </div>
+      {/* Scroll to Top Button */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-8 right-8 z-50 w-12 h-12 bg-gradient-to-r from-rose-600 to-pink-600 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center text-white hover:from-rose-700 hover:to-pink-700 hover:scale-110"
+          aria-label="Scroll to top"
+        >
+          <svg
+            className="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M5 15l7-7 7 7"
+            />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }

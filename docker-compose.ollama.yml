@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-chatbot
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    deploy:
+      resources:
+        limits:
+          memory: 5G  # Limit to 5GB RAM (adjust based on your system)
+          cpus: '2'   # Limit CPU usage
+        reservations:
+          memory: 2G  # Reserve minimum 2GB
+    restart: unless-stopped
+    # GPU support (if available)
+    # runtime: nvidia
+    # environment:
+    #   - NVIDIA_VISIBLE_DEVICES=all
+
+volumes:
+  ollama_data:
+    driver: local

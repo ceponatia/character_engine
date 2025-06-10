@@ -1,0 +1,103 @@
+table_name,column_name,data_type,full_data_type,is_nullable,column_default,ordinal_position,references
+character_memories,id,uuid,uuid,NO,uuid_generate_v4(),1,null
+character_memories,created_at,timestamp with time zone,timestamp with time zone,YES,now(),2,null
+character_memories,content,text,text,NO,null,3,null
+character_memories,summary,text,text,YES,null,4,null
+character_memories,memory_type,text,text,NO,null,5,null
+character_memories,embedding,USER-DEFINED,vector,YES,null,6,null
+character_memories,emotional_weight,double precision,double precision,YES,0.5,7,null
+character_memories,importance,text,text,YES,'medium'::text,8,null
+character_memories,day_number,integer,integer,YES,null,9,null
+character_memories,time_of_day,text,text,YES,null,10,null
+character_memories,location,text,text,YES,null,11,null
+character_memories,related_characters,ARRAY,_text[],YES,'{}'::text[],12,null
+character_memories,topics,ARRAY,_text[],YES,'{}'::text[],13,null
+character_memories,character_id,uuid,uuid,YES,null,14,null
+character_memories,session_id,uuid,uuid,NO,null,15,chat_sessions(id)
+characters,id,uuid,uuid,NO,uuid_generate_v4(),1,null
+characters,name,text,text,NO,null,2,null
+characters,created_at,timestamp with time zone,timestamp with time zone,YES,now(),3,null
+characters,updated_at,timestamp with time zone,timestamp with time zone,YES,now(),4,null
+characters,archetype,text,text,NO,null,5,null
+characters,chatbot_role,text,text,NO,null,6,null
+characters,description,text,text,YES,null,7,null
+characters,colors,ARRAY,_text[],YES,'{}'::text[],8,null
+characters,tone,ARRAY,_text[],YES,'{}'::text[],9,null
+characters,primary_traits,ARRAY,_text[],YES,'{}'::text[],10,null
+characters,secondary_traits,ARRAY,_text[],YES,'{}'::text[],11,null
+characters,greeting,text,text,YES,null,12,null
+characters,source_material,text,text,YES,null,13,null
+characters,conceptual_age,text,text,YES,null,14,null
+characters,full_bio,text,text,YES,null,15,null
+characters,core_persona_summary,text,text,YES,null,16,null
+characters,attire,text,text,YES,null,17,null
+characters,features,text,text,YES,null,18,null
+characters,image_url,text,text,YES,null,19,null
+characters,avatar_image,text,text,YES,null,20,null
+characters,pacing,text,text,YES,null,21,null
+characters,inflection,text,text,YES,null,22,null
+characters,vocabulary,text,text,YES,null,23,null
+characters,quirks,ARRAY,_text[],YES,'{}'::text[],24,null
+characters,interruption_tolerance,text,text,YES,'medium'::text,25,null
+characters,primary_motivation,text,text,YES,null,26,null
+characters,core_goal,text,text,YES,null,27,null
+characters,secondary_goals,ARRAY,_text[],YES,'{}'::text[],28,null
+characters,core_abilities,ARRAY,_text[],YES,'{}'::text[],29,null
+characters,approach,text,text,YES,null,30,null
+characters,patience,text,text,YES,null,31,null
+characters,demeanor,text,text,YES,null,32,null
+characters,adaptability,text,text,YES,null,33,null
+characters,affirmation,text,text,YES,null,34,null
+characters,comfort,text,text,YES,null,35,null
+characters,default_intro_message,text,text,YES,null,36,null
+characters,forbidden_topics,ARRAY,_text[],YES,'{}'::text[],37,null
+characters,interaction_policy,text,text,YES,null,38,null
+characters,conflict_resolution,text,text,YES,null,39,null
+characters,owner_id,uuid,uuid,YES,null,40,null
+chat_messages,id,uuid,uuid,NO,uuid_generate_v4(),1,null
+chat_messages,content,text,text,NO,null,2,null
+chat_messages,sender,text,text,NO,null,3,null
+chat_messages,character_id,uuid,uuid,YES,null,4,null
+chat_messages,timestamp,timestamp with time zone,timestamp with time zone,YES,now(),5,null
+chat_messages,chat_session_id,uuid,uuid,YES,null,6,null
+chat_sessions,id,uuid,uuid,NO,uuid_generate_v4(),1,null
+chat_sessions,name,text,text,NO,null,2,null
+chat_sessions,created_at,timestamp with time zone,timestamp with time zone,YES,now(),3,null
+chat_sessions,updated_at,timestamp with time zone,timestamp with time zone,YES,now(),4,null
+chat_sessions,last_activity,timestamp with time zone,timestamp with time zone,YES,now(),5,null
+chat_sessions,setting_id,uuid,uuid,YES,null,6,null
+chat_sessions,owner_id,uuid,uuid,YES,null,7,null
+chat_sessions,character_id,uuid,uuid,YES,null,8,characters(id)
+locations,id,uuid,uuid,NO,gen_random_uuid(),1,null
+locations,created_at,timestamp with time zone,timestamp with time zone,YES,now(),2,null
+locations,updated_at,timestamp with time zone,timestamp with time zone,YES,now(),3,null
+locations,name,text,text,NO,null,4,null
+locations,description,text,text,YES,null,5,null
+locations,setting_id,uuid,uuid,YES,null,6,settings(id)
+locations,atmosphere,text,text,YES,null,7,null
+locations,details,jsonb,jsonb,YES,'{}'::jsonb,8,null
+locations,owner_id,uuid,uuid,YES,null,9,null
+setting_locations,id,uuid,uuid,NO,gen_random_uuid(),1,null
+setting_locations,setting_id,uuid,uuid,NO,null,2,null
+setting_locations,setting_id,uuid,uuid,NO,null,2,settings(id)
+setting_locations,location_id,uuid,uuid,NO,null,3,locations(id)
+setting_locations,location_id,uuid,uuid,NO,null,3,null
+setting_locations,created_at,timestamp with time zone,timestamp with time zone,YES,now(),4,null
+setting_locations,updated_at,timestamp with time zone,timestamp with time zone,YES,now(),5,null
+settings,id,uuid,uuid,NO,uuid_generate_v4(),1,null
+settings,name,text,text,NO,null,2,null
+settings,description,text,text,NO,null,3,null
+settings,plot,text,text,YES,null,4,null
+settings,setting_type,text,text,YES,'general'::text,5,null
+settings,time_of_day,text,text,YES,null,6,null
+settings,mood,text,text,YES,null,7,null
+settings,theme,text,text,YES,null,8,null
+settings,image_url,text,text,YES,null,9,null
+settings,owner_id,uuid,uuid,YES,null,10,null
+settings,created_at,timestamp with time zone,timestamp with time zone,YES,now(),11,null
+settings,updated_at,timestamp with time zone,timestamp with time zone,YES,now(),12,null
+users,id,uuid,uuid,NO,uuid_generate_v4(),1,null
+users,email,text,text,YES,null,2,null
+users,username,text,text,YES,null,3,null
+users,created_at,timestamp with time zone,timestamp with time zone,YES,now(),4,null
+users,updated_at,timestamp with time zone,timestamp with time zone,YES,now(),5,null

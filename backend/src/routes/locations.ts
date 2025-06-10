@@ -1,254 +1,201 @@
-import express, { Request, Response } from 'express';
-import { prisma } from '../utils/database';
+import { Hono } from 'hono';
+import { supabase } from '../utils/supabase-db';
 
-const router = express.Router();
+const locations = new Hono();
 
-// Create a new location
-router.post('/', async (req: Request, res: Response) => {
+// GET /api/locations - Get all locations
+locations.get('/', async (c) => {
   try {
-    const { name, description, details, locationType, ambiance, lighting, accessibility } = req.body;
+    const limit = c.req.query('limit') ? parseInt(c.req.query('limit')!) : undefined;
+    const settingId = c.req.query('setting_id');
     
-    // For now, create a default user if none exists (single-user mode)
-    let user = await prisma.user.findFirst();
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          username: 'default_user',
-          email: 'user@chatbot.local'
-        }
-      });
-    }
-
-    const location = await prisma.location.create({
-      data: {
-        name,
-        description,
-        details,
-        locationType: locationType || 'room',
-        ambiance,
-        lighting,
-        accessibility,
-        ownerId: user.id
-      }
-    });
-
-    res.status(201).json({
-      success: true,
-      location
-    });
-
-  } catch (error) {
-    console.error('Location creation error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to create location',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// Get all locations for the user
-router.get('/', async (req: Request, res: Response) => {
-  try {
-    // For single-user mode, get the first user's locations
-    const user = await prisma.user.findFirst();
-    if (!user) {
-      return res.json({ locations: [] });
-    }
-
-    const locations = await prisma.location.findMany({
-      where: {
-        ownerId: user.id
-      },
-      include: {
-        settingLocations: {
-          include: {
-            setting: {
-              select: {
-                id: true,
-                name: true,
-                settingType: true
-              }
-            }
-          }
-        }
-      },
-      orderBy: { updatedAt: 'desc' }
-    });
-
-    res.json({
-      success: true,
-      locations
-    });
-
-  } catch (error) {
-    console.error('Locations fetch error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch locations',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// Get a specific location by ID
-router.get('/:id', async (req: Request, res: Response) => {
-  try {
-    const location = await prisma.location.findUnique({
-      where: {
-        id: req.params.id
-      },
-      include: {
-        settingLocations: {
-          include: {
-            setting: {
-              select: {
-                id: true,
-                name: true,
-                settingType: true,
-                theme: true
-              }
-            }
-          }
-        }
-      }
-    });
-
-    if (!location) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Location not found' 
-      });
-    }
-
-    res.json({
-      success: true,
-      location
-    });
-
-  } catch (error) {
-    console.error('Location fetch error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch location',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// Update a location
-router.put('/:id', async (req: Request, res: Response) => {
-  try {
-    const { name, description, details, locationType, ambiance, lighting, accessibility } = req.body;
+    let query = supabase
+      .from('locations')
+      .select(`
+        *,
+        settings (
+          id,
+          name,
+          theme
+        )
+      `)
+      .order('created_at', { ascending: false });
     
-    const location = await prisma.location.update({
-      where: { id: req.params.id },
-      data: {
-        name,
-        description,
-        details,
-        locationType,
-        ambiance,
-        lighting,
-        accessibility
-      },
-      include: {
-        settingLocations: {
-          include: {
-            setting: {
-              select: {
-                id: true,
-                name: true,
-                settingType: true
-              }
-            }
-          }
-        }
-      }
-    });
-
-    res.json({
-      success: true,
-      location
-    });
-
-  } catch (error) {
-    console.error('Location update error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update location',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// Delete a location
-router.delete('/:id', async (req: Request, res: Response) => {
-  try {
-    // First delete all setting-location associations
-    await prisma.settingLocation.deleteMany({
-      where: { locationId: req.params.id }
-    });
-
-    // Then delete the location
-    await prisma.location.delete({
-      where: { id: req.params.id }
-    });
-
-    res.json({
-      success: true,
-      message: 'Location deleted successfully'
-    });
-
-  } catch (error) {
-    console.error('Location deletion error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to delete location',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// Get locations that are available to add to a setting (not already in the setting)
-router.get('/available/:settingId', async (req: Request, res: Response) => {
-  try {
-    const user = await prisma.user.findFirst();
-    if (!user) {
-      return res.json({ locations: [] });
+    if (settingId) {
+      query = query.eq('setting_id', settingId);
     }
-
-    // Get all locations for the user
-    const allLocations = await prisma.location.findMany({
-      where: { ownerId: user.id }
-    });
-
-    // Get locations already in the setting
-    const settingLocations = await prisma.settingLocation.findMany({
-      where: { settingId: req.params.settingId },
-      select: { locationId: true }
-    });
-
-    const usedLocationIds = settingLocations.map(sl => sl.locationId);
-
-    // Filter out locations already in the setting
-    const availableLocations = allLocations.filter(
-      location => !usedLocationIds.includes(location.id)
-    );
-
-    res.json({
-      success: true,
-      locations: availableLocations
-    });
-
+    
+    if (limit) {
+      query = query.limit(limit);
+    }
+    
+    const { data: locations, error } = await query;
+    
+    if (error) {
+      console.error('Failed to fetch locations:', error);
+      return c.json({ error: 'Failed to fetch locations' }, 500);
+    }
+    
+    // Transform snake_case database fields to camelCase for frontend
+    const transformedLocations = locations?.map(location => ({
+      ...location,
+      settingId: location.setting_id,
+      createdAt: location.created_at,
+      updatedAt: location.updated_at,
+      // Transform nested settings if present
+      settings: location.settings ? {
+        ...location.settings,
+        settingType: location.settings.setting_type,
+        timeOfDay: location.settings.time_of_day,
+        imageUrl: location.settings.image_url,
+        createdAt: location.settings.created_at,
+        updatedAt: location.settings.updated_at
+      } : null
+    })) || [];
+    
+    return c.json({ locations: transformedLocations });
   } catch (error) {
-    console.error('Available locations fetch error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch available locations',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
+    console.error('Locations API error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
   }
 });
 
-export default router;
+// GET /api/locations/:id - Get location by ID
+locations.get('/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    
+    const { data: location, error } = await supabase
+      .from('locations')
+      .select(`
+        *,
+        settings (
+          id,
+          name,
+          theme,
+          description
+        )
+      `)
+      .eq('id', id)
+      .single();
+    
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return c.json({ error: 'Location not found' }, 404);
+      }
+      console.error('Failed to fetch location:', error);
+      return c.json({ error: 'Failed to fetch location' }, 500);
+    }
+    
+    // Transform snake_case database fields to camelCase for frontend
+    const transformedLocation = {
+      ...location,
+      settingId: location.setting_id,
+      createdAt: location.created_at,
+      updatedAt: location.updated_at,
+      // Transform nested settings if present
+      settings: location.settings ? {
+        ...location.settings,
+        settingType: location.settings.setting_type,
+        timeOfDay: location.settings.time_of_day,
+        imageUrl: location.settings.image_url,
+        createdAt: location.settings.created_at,
+        updatedAt: location.settings.updated_at
+      } : null
+    };
+    
+    return c.json({ location: transformedLocation });
+  } catch (error) {
+    console.error('Location by ID API error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// POST /api/locations - Create new location
+locations.post('/', async (c) => {
+  try {
+    const locationData = await c.req.json();
+    
+    const { data: location, error } = await supabase
+      .from('locations')
+      .insert(locationData)
+      .select(`
+        *,
+        settings (
+          id,
+          name,
+          theme
+        )
+      `)
+      .single();
+    
+    if (error) {
+      console.error('Failed to create location:', error);
+      return c.json({ error: 'Failed to create location' }, 500);
+    }
+    
+    return c.json({ location }, 201);
+  } catch (error) {
+    console.error('Create location API error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// PUT /api/locations/:id - Update location
+locations.put('/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const updates = await c.req.json();
+    
+    const { data: location, error } = await supabase
+      .from('locations')
+      .update(updates)
+      .eq('id', id)
+      .select(`
+        *,
+        settings (
+          id,
+          name,
+          theme
+        )
+      `)
+      .single();
+    
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return c.json({ error: 'Location not found' }, 404);
+      }
+      console.error('Failed to update location:', error);
+      return c.json({ error: 'Failed to update location' }, 500);
+    }
+    
+    return c.json({ location });
+  } catch (error) {
+    console.error('Update location API error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// DELETE /api/locations/:id - Delete location
+locations.delete('/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    
+    const { error } = await supabase
+      .from('locations')
+      .delete()
+      .eq('id', id);
+    
+    if (error) {
+      console.error('Failed to delete location:', error);
+      return c.json({ error: 'Failed to delete location' }, 500);
+    }
+    
+    return c.json({ message: 'Location deleted successfully' });
+  } catch (error) {
+    console.error('Delete location API error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+export default locations;

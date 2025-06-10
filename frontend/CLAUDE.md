@@ -2,71 +2,111 @@
 
 ## Module Purpose
 
-This module handles the user interface and real-time interaction components for the romantic chatbot system with a cohesive romantic dark theme and responsive design.
+This module provides the complete user interface for a sophisticated AI-powered character interaction framework. It handles character management, real-time chat, and advanced interaction modes with a cohesive romantic dark theme and professional UX patterns.
 
 ## Responsibilities
 
 ### Core UI Components
-- **Chat Interface** - Message display with romantic styling, input handling, character selection
-- **Character Management** - Character creation forms, profile editing, trait selection with visual feedback
-- **Character Gallery** - Responsive grid layout with properly sized avatar thumbnails
-- **Scene Management** - Location/setting selection and environmental controls
-- **Session Controls** - Save/load sessions, session history, continuation options
+- **Character Management** - Creation, editing, deletion, and gallery display of AI characters
+- **Interactive Chat Interface** - Real-time messaging with character-specific responses
+- **Session Management** - Story creation, session handling, and conversation continuity
+- **Advanced Interaction Modes** - Delete mode, selection overlays, and multi-character support
+- **Navigation & Layout** - Responsive routing and consistent page structures
 
-### Real-Time Features
-- **WebSocket Integration** - Real-time message delivery and typing indicators
-- **Typing Indicators** - Display "Luna is talking..." when AI generates responses
-- **Presence Detection** - Monitor user activity and typing status
-- **Interruption Handling** - Allow users to interrupt AI responses when appropriate
+### State Management & Data Flow
+- **Character State** - Creation forms, selection tracking, delete workflows
+- **Chat State** - Message history, typing indicators, real-time updates
+- **Session State** - Story configurations, character assignments, save/load functionality
+- **UI State** - Mode switching, overlay management, responsive layouts
 
-### User Experience & Design
+### User Experience & Design Philosophy
+- **Stable DOM Architecture** - Prevents flickering and layout shifts during state changes
 - **Romantic Dark Theme** - Burgundy, plum, and rose color palettes with deep backgrounds
-- **Responsive Design** - Mobile-first approach with proper viewport scaling
-- **Visual Hierarchy** - Consistent typography and spacing using slate color system
-- **Interactive Elements** - Hover effects, transitions, and romantic glow effects
-- **Accessibility** - Screen reader support, keyboard navigation, color contrast
+- **Professional UX Patterns** - Confirmation dialogs, progressive disclosure, graceful error handling
+- **Responsive Design** - Optimized for 1920px desktop with mobile fallbacks
+- **Visual Feedback** - Smooth transitions, hover effects, and interaction states
 
 ## Technical Stack
 - **Framework**: Next.js 15 (React) with TypeScript
-- **Styling**: Custom CSS (replaced Tailwind due to configuration issues)
-- **Real-Time**: WebSocket client for live interactions
-- **State Management**: React Hook Form for character creation
-- **Icons**: Emoji-based iconography for personality
+- **Styling**: Tailwind CSS with custom component library
+- **State Management**: React Hook Form for complex forms, useState for UI state
+- **Components**: Reusable StableCard system for DOM stability
+- **Backend Integration**: RESTful API calls with Supabase database
+- **Real-Time**: WebSocket client for live chat interactions
+- **Icons**: Emoji-based iconography with SVG overlays
 
 ## Implemented Features ✅
 
-### Character Management
+### Character Management System
 - ✅ **Character Builder** - 7-section wizard with comprehensive personality configuration
-- ✅ **Character Gallery** - Responsive 1-4 column grid with fixed-size avatar thumbnails
-- ✅ **Visual Feedback** - Toggle buttons, form validation, and progress indication
-- ✅ **Avatar Generation** - DiceBear API integration for consistent character avatars
+- ✅ **Character Gallery** - 4×2 responsive grid optimized for 1920px displays with delete functionality
+- ✅ **Delete Workflow** - Multi-step deletion with confirmation dialogs and batch operations
+- ✅ **Edit Mode** - Full character editing with pre-populated forms and data persistence
+- ✅ **Avatar System** - DiceBear API integration with upload support and fallback handling
+
+### Advanced UI Components
+- ✅ **StableCard System** - Prevents DOM reconstruction and image flickering during state changes
+- ✅ **Overlay Management** - Selection, delete, and edit overlays with proper z-indexing
+- ✅ **Form Validation** - Real-time validation with error handling and user feedback
+- ✅ **Progressive Disclosure** - Section-based navigation with state preservation
+- ✅ **Confirmation Patterns** - Multi-step confirmation dialogs with clear warnings
+
+### UX & Interaction Design  
+- ✅ **Stable DOM Architecture** - No layout shifts during mode transitions
+- ✅ **Professional Delete Flow** - Delete mode toggle → selection → confirmation → execution
+- ✅ **Responsive Grid** - 4 cards per row with scrollable overflow for large collections
+- ✅ **Visual State Management** - Clear indicators for interactive modes and selections
+- ✅ **Error Prevention** - Cascade deletion of character memories to maintain data integrity
 
 ### Design System
-- ✅ **Romantic Theme** - Complete color palette with burgundy/plum/rose accents via custom CSS
-- ✅ **Reusable Components** - .btn, .character-card, .card, .form-input semantic classes
-- ✅ **Responsive Layout** - Custom CSS Grid: 2-4 columns, fixed 200px image heights
-- ✅ **Interactive States** - Hover effects, transitions, and visual feedback
-- ✅ **Custom CSS Solution** - Replaced Tailwind with /app/custom.css for reliable styling
+- ✅ **Romantic Dark Theme** - Burgundy/plum/rose color palette with glass-morphism effects
+- ✅ **Component Library** - StableCard, SelectionOverlay, and reusable UI patterns
+- ✅ **Typography Hierarchy** - Consistent text styling and information architecture
+- ✅ **Interactive Feedback** - Hover effects, transitions, and loading states
+- ✅ **Accessibility Patterns** - Proper contrast, keyboard navigation, and screen reader support
 
-### User Interface
-- ✅ **Chat Interface** - Romantic-themed messaging with gradient backgrounds
-- ✅ **Navigation** - Consistent button styling and section-based navigation
-- ✅ **Form Handling** - Comprehensive character creation with trait selection
-- ✅ **Error Handling** - Graceful fallbacks and user feedback
+## Architecture Principles
 
-## Key Features to Implement
+### DOM Stability Pattern
+The frontend implements a **stable DOM architecture** to prevent flickering and layout shifts:
 
-### Real-Time Chat
-- **Multiple Character Support** - Character switching and simultaneous conversations
+```tsx
+// ❌ Problematic: Conditional element types cause DOM reconstruction
+{mode === 'view' ? (
+  <Link href="/character/123"><div className="card">...</div></Link>
+) : (
+  <div onClick={handler}><div className="card">...</div></div>
+)}
+
+// ✅ Stable: Same DOM structure, conditional behavior
+<StableCard 
+  href="/character/123" 
+  isInteractive={mode === 'edit'}
+  overlays={[<SelectionOverlay isSelected={selected} />]}
+>
+  <div className="card">...</div>
+</StableCard>
+```
+
+### Component Design Philosophy
+- **Reusable Patterns** - StableCard, overlays, and interaction modes for consistency
+- **State Isolation** - UI state separated from business logic
+- **Progressive Enhancement** - Base functionality works, overlays enhance interaction
+- **Predictable Behavior** - No surprise layout shifts or content reloading
+
+### Key Features In Development
+
+#### Real-Time Chat System
+- **WebSocket Integration** - Live messaging with character-specific responses
 - **Typing Indicators** - "Character is typing..." with romantic styling
 - **Message Threading** - Conversation history and context management
-- **Voice Integration** - Text-to-speech with character-specific voices
+- **Character Switching** - Seamless transitions between different AI companions
 
-### Advanced Features
-- **Session Management** - Save/load/continue conversation sessions
-- **Character Profiles** - Detailed character pages with full personality display
-- **Environmental Controls** - Time, weather, location settings affecting character behavior
-- **Interruption Handling** - User interruption of AI responses based on character tolerance
+#### Advanced Character Features
+- **Session Management** - Save/load/continue conversation sessions with story context
+- **Character Profiles** - Detailed character pages showing full personality configuration
+- **Relationship Progression** - Dynamic character growth based on interaction history
+- **Environmental Integration** - Time, weather, location effects on character behavior
 
 ## Integration Points
 - **Backend API**: RESTful endpoints for character/session management
@@ -74,56 +114,73 @@ This module handles the user interface and real-time interaction components for 
 - **Character Engine**: Character state display and interaction controls
 - **Session Manager**: Save/load functionality and session history
 
-## Design Specifications
+## Component Library
 
-### Custom CSS Architecture (Replaced Tailwind)
+### StableCard System
+**Location**: `/app/components/UI/StableCard.tsx`
 
-**File Location**: `/app/custom.css` - Imported in layout.tsx after globals.css
+**Purpose**: Prevents DOM reconstruction during state changes to eliminate image flickering and layout shifts.
 
-### Responsive Breakpoints
-- **Mobile (default)**: 2 columns, 200px fixed avatar height
-- **Tablet (768px+)**: 3 columns, 200px fixed avatar height  
-- **Desktop (1024px+)**: 4 columns, 200px fixed avatar height
-- **Max card width**: 280px with centering for consistency
-
-### Color System
-- **Primary**: Rose (#e11d48) - main actions and accents
-- **Secondary**: Purple (#9333ea) - secondary actions
-- **Background**: Linear gradient (#0f172a → #1e293b → #374151)
-- **Cards**: rgba(15, 23, 42, 0.8) with backdrop-blur
-- **Text**: White, #f1f5f9, #cbd5e1, #94a3b8, #64748b for hierarchy
-
-### Component Classes
-- **.btn, .btn-primary, .btn-secondary**: Semantic button system with gradients
-- **.character-card**: Fixed-size cards with hover scaling and glow effects
-- **.character-image**: 200px × 200px containers with overlay text
-- **.characters-grid**: CSS Grid responsive layout (2→3→4 columns)
-- **.card**: General purpose glass-morphism containers
-- **.form-input**: Form inputs with rose focus states and proper placeholder styling
-- **.chat-message.user/.character**: Styled message bubbles for conversation
-- **.empty-state**: Centered empty states with large emoji icons
-
-### CSS Grid Implementation
-```css
-.characters-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
-}
-@media (min-width: 768px) {
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1.5rem;
-}
-@media (min-width: 1024px) {
-  grid-template-columns: repeat(4, 1fr);
-}
+**Usage**:
+```tsx
+<StableCard
+  href="/character/123"
+  isInteractive={deleteMode}
+  isSelected={selectedIds.has(character.id)}
+  onClick={handleSelect}
+  overlays={[
+    <SelectionOverlay key="selection" isSelected={isSelected} />
+  ]}
+>
+  <img src="avatar.jpg" />
+  <div>Character info...</div>
+</StableCard>
 ```
 
-### Debugging Notes
-- **Tailwind Issues**: Configuration not being applied consistently, custom classes not working
-- **Solution**: Complete replacement with semantic custom CSS classes
-- **Image Sizing**: Fixed with explicit 200px height and object-fit: cover
-- **Grid Layout**: Custom CSS Grid more reliable than Tailwind's responsive classes
-- **Performance**: Single CSS file loads faster than Tailwind processing
+**Pre-built Overlays**:
+- `SelectionOverlay` - Checkmark for selected items
+- `DeleteOverlay` - Delete icon for deletion mode  
+- `EditOverlay` - Edit icon for edit mode
 
-This module provides a complete, visually cohesive romantic chatbot interface with professional UX patterns and responsive design.
+### Layout Specifications
+
+#### Character Gallery Grid
+- **Desktop (1920px)**: 4×2 grid in 500px height scrollable container
+- **Responsive**: Maintains 4 columns with proper card spacing
+- **Grid Container**: `max-w-6xl` with `px-2 pt-2` for highlight edge protection
+- **Card Sizing**: Fixed aspect ratio with responsive scaling
+
+#### Color System
+- **Primary**: Rose (#e11d48) - main actions and selection states
+- **Secondary**: Purple (#9333ea) - secondary actions  
+- **Background**: Slate gradient (#0f172a → #1e293b → #374151)
+- **Cards**: Glass-morphism with `bg-slate-800/40` and backdrop-blur
+- **Selection**: Rose ring (`ring-2 ring-rose-400`) with scale-105 transform
+
+#### Typography & Spacing
+- **Headings**: Gradient text (`from-rose-400 to-pink-400`)
+- **Body Text**: Slate hierarchy (100, 300, 400) for information hierarchy
+- **Interactive Elements**: Smooth transitions (200ms) and hover feedback
+- **Form Elements**: Rose focus states with proper contrast
+
+## Code Quality Patterns
+
+### State Management Best Practices
+- **Separate Concerns**: UI state vs business logic vs form state
+- **Predictable Updates**: Immutable state updates with proper React patterns
+- **Error Boundaries**: Graceful error handling with user feedback
+- **Loading States**: Progressive loading with skeleton states
+
+### Performance Optimizations
+- **Memoized Functions**: `useMemo` for expensive calculations (avatar sources)
+- **Stable References**: Prevent unnecessary re-renders during mode changes
+- **Lazy Loading**: Dynamic imports for large components
+- **Image Optimization**: Fallback strategies and error handling
+
+### Accessibility & UX
+- **Keyboard Navigation**: Full keyboard support for all interactive elements
+- **Screen Readers**: Proper ARIA labels and semantic HTML structure
+- **Color Contrast**: WCAG AA compliance for all text/background combinations
+- **Focus Management**: Logical tab order and focus indicators
+
+This frontend module provides a professional, stable, and scalable foundation for complex character interaction interfaces with enterprise-grade UX patterns.
