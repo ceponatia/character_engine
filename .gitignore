@@ -135,7 +135,7 @@ backend/uploads/*
 
 node_modules
 
-# Ollama files
+# Ollama files and models (large files)
 ollama-*
 lib/ollama/
 **/ollama/**
@@ -144,6 +144,8 @@ lib/ollama/
 *.so.*
 *.gguf
 *.bin
+backend/lib/
+backend/bin/
 
 # Documentation files (Claude-generated)
 *.md
