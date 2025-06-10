@@ -11,14 +11,14 @@ interface ChatSession {
   id: string;
   name: string;
   lastActivity: string;
-  character_id: string;
-  setting_id: string;
+  characterId: string;
+  settingId: string;
   createdAt?: string;
-  characters: {
+  character: {
     name: string;
     archetype: string;
   };
-  settings: {
+  setting: {
     name: string;
     theme: string;
     settingType: string;
@@ -156,8 +156,8 @@ export default function Home() {
                     key={session.id}
                     image={storyImage}
                     title={session.name}
-                    subtitle={`Character: ${session.characters?.name || 'Unknown'}`}
-                    tags={[session.settings?.settingType || 'Story', session.settings?.theme || 'Adventure']}
+                    subtitle={`Character: ${session.character?.name || 'Unknown'}`}
+                    tags={[session.setting?.settingType || 'Story', session.setting?.theme || 'Adventure']}
                     createdAt={session.createdAt || session.lastActivity}
                     href={`/stories/${session.id}`}
                   />

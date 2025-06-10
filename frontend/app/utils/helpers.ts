@@ -36,8 +36,6 @@ interface ImageItem {
  */
 interface CharacterItem extends ImageItem {
   avatarImage?: string;
-  image_url?: string;
-  avatar_image?: string;
 }
 
 /**
@@ -45,7 +43,6 @@ interface CharacterItem extends ImageItem {
  */
 interface SettingItem extends ImageItem {
   settingType?: string;
-  setting_type?: string;
 }
 
 /**
@@ -73,7 +70,7 @@ export const getSettingImage = (setting: SettingItem): string => {
   
   // Generate a default themed image based on setting type and name
   const settingName = setting.name || 'Setting';
-  const settingType = setting.settingType || setting.setting_type || 'general';
+  const settingType = setting.settingType || 'general';
   const seed = encodeURIComponent(`${settingName}-${settingType}`);
   
   // Return different default images based on setting type
@@ -110,7 +107,6 @@ export const getLocationImage = (location: {
   imageUrl?: string; 
   name?: string; 
   locationType?: string; 
-  location_type?: string; 
 }, index: number = 0): string => {
   // Use custom uploaded image if available
   if (location.imageUrl) {
@@ -119,7 +115,7 @@ export const getLocationImage = (location: {
   
   // Generate a default themed image based on location type and name
   const locationName = location.name || `Location ${index + 1}`;
-  const locationType = location.locationType || location.location_type || 'room';
+  const locationType = location.locationType || 'room';
   const seed = encodeURIComponent(`${locationName}-${locationType}-${index}`);
   
   // Return different default images based on location type

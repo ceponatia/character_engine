@@ -60,22 +60,6 @@ interface Character {
   interactionPolicy?: string;
   conflictResolution?: string;
 
-  // Snake case variants (from Supabase)
-  source_material?: string;
-  chatbot_role?: string;
-  conceptual_age?: string;
-  image_url?: string;
-  avatar_image?: string;
-  primary_traits?: string[];
-  secondary_traits?: string[];
-  interruption_tolerance?: string;
-  primary_motivation?: string;
-  core_goal?: string;
-  secondary_goals?: string[];
-  core_abilities?: string[];
-  forbidden_topics?: string[];
-  interaction_policy?: string;
-  conflict_resolution?: string;
 }
 
 export default function CharacterProfilePage() {
@@ -161,7 +145,7 @@ export default function CharacterProfilePage() {
                 {character.name}
               </h1>
               <p className="text-xl text-slate-300 mb-4">
-                {character.archetype} • {character.chatbotRole || character.chatbot_role}
+                {character.archetype} • {character.chatbotRole}
               </p>
               {character.description && (
                 <p className="text-slate-400 mb-6 leading-relaxed">{character.description}</p>
@@ -189,18 +173,18 @@ export default function CharacterProfilePage() {
             <div className="space-y-4">
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-slate-400">Role</label>
-                <span className="text-slate-200">{character.chatbotRole || character.chatbot_role}</span>
+                <span className="text-slate-200">{character.chatbotRole}</span>
               </div>
-              {(character.sourceMaterial || character.source_material) && (
+              {character.sourceMaterial && (
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-medium text-slate-400">Source</label>
-                  <span className="text-slate-200">{character.sourceMaterial || character.source_material}</span>
+                  <span className="text-slate-200">{character.sourceMaterial}</span>
                 </div>
               )}
-              {(character.conceptualAge || character.conceptual_age) && (
+              {character.conceptualAge && (
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-medium text-slate-400">Age</label>
-                  <span className="text-slate-200">{character.conceptualAge || character.conceptual_age}</span>
+                  <span className="text-slate-200">{character.conceptualAge}</span>
                 </div>
               )}
               <div className="flex flex-col gap-1">
@@ -247,11 +231,11 @@ export default function CharacterProfilePage() {
           <div className="card">
             <h2 className="section-title">💫 Personality</h2>
             <div className="detail-group">
-              {(character.primaryTraits || character.primary_traits || []).length > 0 && (
+              {(character.primaryTraits || []).length > 0 && (
                 <div className="detail-item">
                   <label>Primary Traits</label>
                   <div className="trait-tags">
-                    {(character.primaryTraits || character.primary_traits || []).map((trait, index) => (
+                    {(character.primaryTraits || []).map((trait, index) => (
                       <span key={index} className="trait-tag primary-trait">
                         {trait}
                       </span>
@@ -259,11 +243,11 @@ export default function CharacterProfilePage() {
                   </div>
                 </div>
               )}
-              {(character.secondaryTraits || character.secondary_traits || []).length > 0 && (
+              {(character.secondaryTraits || []).length > 0 && (
                 <div className="detail-item">
                   <label>Secondary Traits</label>
                   <div className="trait-tags">
-                    {(character.secondaryTraits || character.secondary_traits || []).map((trait, index) => (
+                    {(character.secondaryTraits || []).map((trait, index) => (
                       <span key={index} className="trait-tag secondary-trait">
                         {trait}
                       </span>
@@ -283,10 +267,10 @@ export default function CharacterProfilePage() {
                   </div>
                 </div>
               )}
-              {(character.interruptionTolerance || character.interruption_tolerance) && (
+              {character.interruptionTolerance && (
                 <div className="detail-item">
                   <label>Interruption Tolerance</label>
-                  <span className="detail-value">{character.interruptionTolerance || character.interruption_tolerance}</span>
+                  <span className="detail-value">{character.interruptionTolerance}</span>
                 </div>
               )}
             </div>
@@ -333,23 +317,23 @@ export default function CharacterProfilePage() {
           <div className="card">
             <h2 className="section-title">🎯 Goals & Motivations</h2>
             <div className="detail-group">
-              {(character.primaryMotivation || character.primary_motivation) && (
+              {character.primaryMotivation && (
                 <div className="detail-item">
                   <label>Primary Motivation</label>
-                  <span className="detail-value">{character.primaryMotivation || character.primary_motivation}</span>
+                  <span className="detail-value">{character.primaryMotivation}</span>
                 </div>
               )}
-              {(character.coreGoal || character.core_goal) && (
+              {character.coreGoal && (
                 <div className="detail-item">
                   <label>Core Goal</label>
-                  <span className="detail-value">{character.coreGoal || character.core_goal}</span>
+                  <span className="detail-value">{character.coreGoal}</span>
                 </div>
               )}
-              {(character.secondaryGoals || character.secondary_goals || []).length > 0 && (
+              {(character.secondaryGoals || []).length > 0 && (
                 <div className="detail-item">
                   <label>Secondary Goals</label>
                   <div className="trait-tags">
-                    {(character.secondaryGoals || character.secondary_goals || []).map((goal, index) => (
+                    {(character.secondaryGoals || []).map((goal, index) => (
                       <span key={index} className="trait-tag goal-tag">
                         {goal}
                       </span>
@@ -364,11 +348,11 @@ export default function CharacterProfilePage() {
           <div className="card">
             <h2 className="section-title">⚡ Abilities & Approach</h2>
             <div className="detail-group">
-              {(character.coreAbilities || character.core_abilities || []).length > 0 && (
+              {(character.coreAbilities || []).length > 0 && (
                 <div className="detail-item">
                   <label>Core Abilities</label>
                   <div className="trait-tags">
-                    {(character.coreAbilities || character.core_abilities || []).map((ability, index) => (
+                    {(character.coreAbilities || []).map((ability, index) => (
                       <span key={index} className="trait-tag ability-tag">
                         {ability}
                       </span>

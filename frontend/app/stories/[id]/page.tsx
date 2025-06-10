@@ -28,10 +28,10 @@ interface Setting {
 interface ChatSession {
   id: string;
   name: string;
-  setting_id: string;
-  character_id: string;
-  characters: Character;
-  settings: Setting;
+  settingId: string;
+  characterId: string;
+  character: Character;
+  setting: Setting;
   createdAt: string;
   lastActivity: string;
   messages?: any[];
@@ -179,37 +179,37 @@ export default function StoryPage() {
             <div className="character-info">
               <div className="character-image">
                 <img 
-                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${story.characters?.name || 'character'}`}
-                  alt={story.characters?.name || 'Character'}
+                  src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${story.character?.name || 'character'}`}
+                  alt={story.character?.name || 'Character'}
                 />
               </div>
               <div className="character-details">
-                <h3>{story.characters?.name || 'Unknown Character'}</h3>
-                <p className="character-archetype">{story.characters?.archetype}</p>
-                <p className="character-role">{story.characters?.chatbotRole}</p>
+                <h3>{story.character?.name || 'Unknown Character'}</h3>
+                <p className="character-archetype">{story.character?.archetype}</p>
+                <p className="character-role">{story.character?.chatbotRole}</p>
                 
-                {story.characters?.description && (
+                {story.character?.description && (
                   <div className="character-description">
                     <h4>Description</h4>
-                    <p>{story.characters.description}</p>
+                    <p>{story.character.description}</p>
                   </div>
                 )}
                 
-                {story.characters?.primaryTraits && story.characters.primaryTraits.length > 0 && (
+                {story.character?.primaryTraits && story.character.primaryTraits.length > 0 && (
                   <div className="character-traits">
                     <h4>Primary Traits</h4>
                     <div className="trait-tags">
-                      {story.characters.primaryTraits.map((trait: string, index: number) => (
+                      {story.character.primaryTraits.map((trait: string, index: number) => (
                         <span key={index} className="trait-tag">{trait}</span>
                       ))}
                     </div>
                   </div>
                 )}
                 
-                {story.characters?.greeting && (
+                {story.character?.greeting && (
                   <div className="character-greeting">
                     <h4>Greeting</h4>
-                    <p className="greeting-text">"{story.characters.greeting}"</p>
+                    <p className="greeting-text">"{story.character.greeting}"</p>
                   </div>
                 )}
               </div>
@@ -222,22 +222,22 @@ export default function StoryPage() {
               <h2>🏰 Setting</h2>
             </div>
             <div className="setting-info">
-              <h3>{story.settings?.name || 'General Setting'}</h3>
-              {story.settings?.theme && (
-                <p className="setting-theme">Theme: {story.settings.theme}</p>
+              <h3>{story.setting?.name || 'General Setting'}</h3>
+              {story.setting?.theme && (
+                <p className="setting-theme">Theme: {story.setting.theme}</p>
               )}
               
-              {story.settings?.description && (
+              {story.setting?.description && (
                 <div className="setting-description">
                   <h4>Description</h4>
-                  <p>{story.settings.description}</p>
+                  <p>{story.setting.description}</p>
                 </div>
               )}
               
-              {story.settings?.plot && (
+              {story.setting?.plot && (
                 <div className="setting-plot">
                   <h4>Plot</h4>
-                  <p>{story.settings.plot}</p>
+                  <p>{story.setting.plot}</p>
                 </div>
               )}
             </div>

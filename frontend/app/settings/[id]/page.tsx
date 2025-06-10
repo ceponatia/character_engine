@@ -55,27 +55,9 @@ export default function SettingDetails() {
         const settingData = data.setting;
         
         setSetting({
-          id: settingData.id,
-          name: settingData.name || '',
-          description: settingData.description || '',
-          plot: settingData.plot || '',
-          settingType: settingData.setting_type || 'general',
-          timeOfDay: settingData.time_of_day || '',
-          mood: settingData.mood || '',
-          theme: settingData.theme || '',
-          imageUrl: settingData.image_url || '',
-          createdAt: settingData.created_at || '',
-          updatedAt: settingData.updated_at || '',
-          locations: settingData.locations?.map((loc: any) => ({
-            id: loc.id,
-            name: loc.name || '',
-            description: loc.description || '',
-            details: loc.details || '',
-            locationType: loc.location_type || 'room',
-            ambiance: loc.ambiance || '',
-            lighting: loc.lighting || '',
-            imageUrl: loc.image_url || ''
-          })) || []
+          ...settingData,
+          settingType: settingData.settingType || 'general',
+          locations: settingData.locations || []
         });
       } else {
         console.error('Failed to fetch setting');
