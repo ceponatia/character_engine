@@ -3,6 +3,16 @@
  */
 
 /**
+ * Capitalizes the first letter of a tag
+ * @param tag - Tag string to capitalize
+ * @returns Capitalized tag
+ */
+function capitalizeTag(tag: string): string {
+  if (!tag || tag.length === 0) return tag;
+  return tag.charAt(0).toUpperCase() + tag.slice(1).toLowerCase();
+}
+
+/**
  * Parses a comma-separated string into an array of trimmed tags
  * @param input - Comma-separated string like "tag1, tag2, tag3"
  * @returns Array of trimmed strings, empty strings filtered out
@@ -14,7 +24,7 @@ export function parseCommaSeparatedTags(input: string): string[] {
   
   return input
     .split(',')
-    .map(tag => tag.trim())
+    .map(tag => capitalizeTag(tag.trim()))
     .filter(tag => tag.length > 0);
 }
 
@@ -45,7 +55,7 @@ export function cleanTagArray(tags: string[]): string[] {
   }
   
   const cleaned = tags
-    .map(tag => tag.trim())
+    .map(tag => capitalizeTag(tag.trim()))
     .filter(tag => tag.length > 0);
   
   // Remove duplicates (case-insensitive)

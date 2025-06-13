@@ -91,18 +91,36 @@ export default function ImageUploadArea({
         <div className="flex items-start space-x-6">
           {/* Image Preview Area - Clickable */}
           <div 
-            className="w-48 h-48 border-2 border-dashed border-slate-600 rounded-lg flex items-center justify-center bg-slate-700/50 cursor-pointer hover:bg-slate-700/70 transition-all duration-200"
+            className="w-48 h-48 border-2 border-dashed border-slate-600 rounded-lg flex items-center justify-center bg-slate-700/50 cursor-pointer hover:bg-slate-700/70 transition-all duration-200 relative group"
             onClick={triggerImageUpload}
           >
             {preview ? (
-              <img src={preview} alt={`${entityType} preview`} className="w-full h-full object-cover rounded-lg" />
+              <>
+                <img src={preview} alt={`${entityType} preview`} className="w-full h-full object-cover rounded-lg" />
+                {/* Hover overlay for existing images */}
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
+                  <div className="text-center text-white">
+                    <div className="text-2xl mb-1">🔄</div>
+                    <p className="text-sm font-medium">Click to change</p>
+                  </div>
+                </div>
+              </>
             ) : defaultImageUrl ? (
-              <img src={defaultImageUrl} alt={`Default ${entityType} image`} className="w-full h-full object-cover rounded-lg" />
+              <>
+                <img src={defaultImageUrl} alt={`Default ${entityType} image`} className="w-full h-full object-cover rounded-lg" />
+                {/* Hover overlay for default images */}
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
+                  <div className="text-center text-white">
+                    <div className="text-2xl mb-1">📷</div>
+                    <p className="text-sm font-medium">Click to upload</p>
+                  </div>
+                </div>
+              </>
             ) : (
               <div className="text-center">
                 <span className="text-4xl">{placeholder.emoji}</span>
                 <p className="text-slate-400 text-sm mt-2">{placeholder.text}</p>
-                <p className="text-slate-500 text-xs mt-1">Click to browse</p>
+                <p className="text-slate-500 text-xs mt-1">Click to browse files</p>
               </div>
             )}
           </div>
@@ -111,10 +129,10 @@ export default function ImageUploadArea({
           <div className="flex-1 space-y-4">
             <div className="text-center py-6">
               <p className="text-slate-300 font-medium mb-1">
-                {isDragging ? 'Drop image here!' : 'Drag and drop an image here'}
+                {isDragging ? 'Drop new image here!' : (hasImage ? 'Click image to change or drag new image here' : 'Drag and drop an image here')}
               </p>
               <p className="text-slate-400 text-sm mb-4">
-                or click the image box to browse files
+                {hasImage ? 'or drag and drop to replace' : 'or click the image box to browse files'}
               </p>
               
               <div className="space-y-3">

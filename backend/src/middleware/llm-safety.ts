@@ -1,12 +1,15 @@
 import type { Context } from 'hono';
 
-// LLM Safety Configuration
+// LLM Safety Configuration for KoboldCpp
 export const LLM_CONFIG = {
-  TIMEOUT: 30000,           // 30 seconds max
+  TIMEOUT: 60000,           // 60 seconds max for testing
   MAX_TOKENS: 2048,         // Token limit per request
   MAX_PROMPT_LENGTH: 5000,  // Character limit for prompts
   MEMORY_CHECK_INTERVAL: 5000, // Check memory every 5 seconds
   MAX_CONCURRENT: 3,        // Max concurrent LLM requests
+  KOBOLD_BASE_URL: 'http://localhost:5001', // KoboldCpp server
+  KOBOLD_GENERATE_ENDPOINT: '/api/v1/generate',
+  KOBOLD_CHAT_ENDPOINT: '/v1/chat/completions',
 } as const;
 
 // Request tracking
@@ -26,6 +29,7 @@ export async function safeLLMRequest(
     temperature?: number;
     max_tokens?: number;
     requestId?: string;
+    stop_sequences?: string[];
   } = {}
 ): Promise<any> {
   const requestId = options.requestId || `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -55,16 +59,25 @@ export async function safeLLMRequest(
     console.log(`🔄 Starting LLM request ${requestId} (${activeRequests.size}/${LLM_CONFIG.MAX_CONCURRENT} active)`);
     
     const requestBody = {
-      model: options.model || 'pygmalion2-7b', // Default to available model
-      prompt: prompt, // Use the formatted prompt directly
-      stream: false,
-      options: {
-        temperature: options.temperature || 0.7,
-        num_predict: Math.min(options.max_tokens || LLM_CONFIG.MAX_TOKENS, LLM_CONFIG.MAX_TOKENS)
-      }
+      prompt: prompt,
+      max_length: Math.min(options.max_tokens || 150, 150), // Limit response length for testing
+      temperature: options.temperature || 1.2,  // High temp for creativity
+      temperature_last: true,
+      top_p: 1.0,        // Full probability mass
+      top_k: 0,          // Disable top_k
+      min_p: 0.1,        // Min probability sampling
+      rep_pen: 1.05,     // KoboldCpp uses 'rep_pen' not 'repeat_penalty'
+      rep_pen_range: -1, // KoboldCpp format
+      stop_sequence: options.stop_sequences || [], // Stop sequences
+      trim: true,        // Trim whitespace
+      typical_p: 1.0,    // Disable typical_p
+      tfs: 1.0,          // Disable tail free sampling
+      use_default_badwordsids: false
     };
 
-    const response = await fetch('http://localhost:11434/api/generate', {
+    console.log(`🔄 Sending request to KoboldCpp:`, JSON.stringify(requestBody, null, 2));
+    
+    const response = await fetch(`${LLM_CONFIG.KOBOLD_BASE_URL}${LLM_CONFIG.KOBOLD_GENERATE_ENDPOINT}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -73,29 +86,41 @@ export async function safeLLMRequest(
       signal: controller.signal,
     });
 
+    console.log(`📡 KoboldCpp response status: ${response.status} ${response.statusText}`);
+
     if (!response.ok) {
       const errorText = await response.text();
+      console.error(`❌ KoboldCpp error response:`, errorText);
       throw new Error(`LLM API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
     let result;
     try {
       const responseText = await response.text();
-      console.log('DEBUG: Raw LLM response:', responseText);
+      console.log('📋 Raw LLM response length:', responseText.length);
+      console.log('📋 Raw LLM response preview:', responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''));
+      
       result = JSON.parse(responseText);
+      
+      // KoboldCpp returns results array with text field
+      if (result.results && result.results[0] && result.results[0].text) {
+        console.log('✅ Generated response preview:', result.results[0].text.substring(0, 200) + (result.results[0].text.length > 200 ? '...' : ''));
+      }
+      
     } catch (parseError: any) {
+      console.error(`❌ JSON parse error:`, parseError.message);
       throw new Error(`Failed to parse JSON: ${parseError.message}`);
     }
     const duration = Date.now() - (requestStartTimes.get(requestId) || Date.now());
     
     console.log(`✅ LLM request ${requestId} completed in ${duration}ms`);
     
-    // Return generate API response format
+    // Return consistent response format (adapted from KoboldCpp)
     return {
-      response: result.response || 'I apologize, but I had trouble generating a response.',
-      model: result.model,
-      eval_count: result.eval_count,
-      prompt_eval_count: result.prompt_eval_count
+      response: result.results?.[0]?.text || 'I apologize, but I had trouble generating a response.',
+      model: 'koboldcpp',
+      eval_count: result.results?.[0]?.completion_tokens || 0,
+      prompt_eval_count: result.results?.[0]?.prompt_tokens || 0
     };
 
   } catch (error: any) {
@@ -107,6 +132,128 @@ export async function safeLLMRequest(
     }
     
     console.error(`❌ LLM request ${requestId} failed after ${duration}ms:`, error.message);
+    throw error;
+  } finally {
+    // Cleanup
+    clearTimeout(timeoutId);
+    activeRequests.delete(requestId);
+    requestStartTimes.delete(requestId);
+  }
+}
+
+/**
+ * Safe LLM chat request using structured messages (preferred method)
+ */
+export async function safeLLMChatRequest(
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  options: {
+    model?: string;
+    temperature?: number;
+    max_tokens?: number;
+    requestId?: string;
+  } = {}
+): Promise<any> {
+  const requestId = options.requestId || `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  // Check concurrent request limit
+  if (activeRequests.size >= LLM_CONFIG.MAX_CONCURRENT) {
+    throw new Error(`Too many concurrent requests. Max ${LLM_CONFIG.MAX_CONCURRENT} allowed.`);
+  }
+
+  // Validate total message length
+  const totalLength = messages.reduce((sum, msg) => sum + msg.content.length, 0);
+  if (totalLength > LLM_CONFIG.MAX_PROMPT_LENGTH) {
+    throw new Error(`Messages too long. Max ${LLM_CONFIG.MAX_PROMPT_LENGTH} characters allowed.`);
+  }
+
+  // Track active request
+  activeRequests.add(requestId);
+  requestStartTimes.set(requestId, Date.now());
+
+  // Create abort controller for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    console.error(`🚨 LLM chat request ${requestId} timed out after ${LLM_CONFIG.TIMEOUT}ms`);
+    controller.abort();
+  }, LLM_CONFIG.TIMEOUT);
+
+  try {
+    console.log(`🔄 Starting LLM chat request ${requestId} (${activeRequests.size}/${LLM_CONFIG.MAX_CONCURRENT} active)`);
+    
+    const chatRequest = {
+      model: 'koboldcpp',
+      messages: messages,
+      stream: false,
+      temperature: options.temperature || 1.2,  // High temp for creativity
+      max_tokens: options.max_tokens || 512,
+      top_p: 1.0,        // Full probability mass
+      top_k: 0,          // Disable top_k
+      // KoboldCpp specific parameters via 'extra'
+      extra: {
+        min_p: 0.1,        // Min probability sampling
+        rep_pen: 1.05,     // Light repetition penalty
+        rep_pen_range: -1,
+        temperature_last: true,
+        typical_p: 1.0,
+        tfs: 1.0,
+        use_default_badwordsids: false
+      }
+    };
+
+    console.log('🔄 Sending chat request to KoboldCpp with', messages.length, 'messages');
+
+    const response = await fetch(`${LLM_CONFIG.KOBOLD_BASE_URL}${LLM_CONFIG.KOBOLD_CHAT_ENDPOINT}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(chatRequest),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('📡 KoboldCpp chat response error:', response.status, errorText);
+      throw new Error(`KoboldCpp API error: ${response.status} ${errorText}`);
+    }
+
+    console.log('📡 KoboldCpp chat response status:', response.status, response.statusText);
+
+    const responseText = await response.text();
+    console.log('📋 Raw LLM chat response length:', responseText.length);
+
+    let result;
+    try {
+      result = JSON.parse(responseText);
+      
+      // KoboldCpp OpenAI-compatible format: choices[0].message.content
+      if (result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content) {
+        console.log('✅ Generated chat response preview:', result.choices[0].message.content.substring(0, 200) + (result.choices[0].message.content.length > 200 ? '...' : ''));
+      }
+      
+    } catch (parseError: any) {
+      console.error(`❌ JSON parse error:`, parseError.message);
+      throw new Error(`Failed to parse JSON: ${parseError.message}`);
+    }
+    
+    const duration = Date.now() - (requestStartTimes.get(requestId) || Date.now());
+    console.log(`✅ LLM chat request ${requestId} completed in ${duration}ms`);
+    
+    // Return in consistent format (adapted from KoboldCpp OpenAI format)
+    return {
+      response: result.choices?.[0]?.message?.content || 'I apologize, but I had trouble generating a response.',
+      model: result.model || 'koboldcpp',
+      eval_count: result.usage?.completion_tokens || 0,
+      prompt_eval_count: result.usage?.prompt_tokens || 0
+    };
+
+  } catch (error: any) {
+    const duration = Date.now() - (requestStartTimes.get(requestId) || Date.now());
+    
+    if (error.name === 'AbortError') {
+      console.error(`🚨 LLM chat request ${requestId} aborted after ${duration}ms - TIMEOUT`);
+      throw new Error('LLM request timed out. Please try a shorter conversation or check system resources.');
+    }
+    
+    console.error(`❌ LLM chat request ${requestId} failed after ${duration}ms:`, error.message);
     throw error;
   } finally {
     // Cleanup
@@ -231,5 +378,6 @@ setInterval(async () => {
   }
 }, LLM_CONFIG.MEMORY_CHECK_INTERVAL);
 
-console.log('🛡️  LLM Safety middleware initialized');
+console.log('🛡️  LLM Safety middleware initialized for KoboldCpp');
 console.log(`📊 Limits: ${LLM_CONFIG.TIMEOUT}ms timeout, ${LLM_CONFIG.MAX_TOKENS} tokens, ${LLM_CONFIG.MAX_CONCURRENT} concurrent`);
+console.log(`🔗 KoboldCpp URL: ${LLM_CONFIG.KOBOLD_BASE_URL}`);

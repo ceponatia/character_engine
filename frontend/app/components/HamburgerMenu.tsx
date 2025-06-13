@@ -16,9 +16,9 @@ export default function HamburgerMenu() {
 
   return (
     <>
-      {/* Hamburger Button - Positioned to align with header center */}
+      {/* Hamburger Button - Positioned relative to header */}
       <button 
-        className={`fixed top-4 right-6 z-50 w-10 h-10 bg-gradient-to-r from-rose-600 to-pink-600 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col justify-center items-center space-y-0.5 ${isOpen ? 'rotate-90' : ''}`}
+        className={`w-10 h-10 bg-gradient-to-r from-rose-600 to-pink-600 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col justify-center items-center space-y-0.5 ${isOpen ? 'rotate-90' : ''}`}
         onClick={toggleMenu}
         aria-label="Toggle menu"
       >

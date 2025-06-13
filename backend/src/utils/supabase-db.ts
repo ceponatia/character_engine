@@ -4,8 +4,18 @@ import type { Database, Character, CharacterInsert, CharacterMemory } from '../t
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+// Use service role client for backend operations (bypasses RLS)
+export const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
+
+// Keep anonymous client for public operations if needed
+export const anonSupabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 // Database utility functions (replacing Prisma)
 export class SupabaseDB {

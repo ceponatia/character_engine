@@ -3,6 +3,9 @@
 export { formatRelativeTime, capitalize, getInitials } from './text';
 export { createSearchFilter, debounce, sortByRelevance } from './search';
 export { apiGet, apiPost, apiPut, apiDelete, charactersApi, settingsApi, locationsApi, storiesApi } from './api';
+export { parseJsonField, parseThemeField, parseMoodField, parseTimeOfDayField, parseFieldValue, parseMetadataFields } from './field-parsing';
+import { getApiBaseUrl } from './api-config';
+import { generateFallbackImageUrl } from './image-upload';
 
 /**
  * Truncates text to a specified length with ellipsis
@@ -51,42 +54,38 @@ interface SettingItem extends ImageItem {
 export const getCharacterAvatar = (character: CharacterItem): string => {
   // Use imageUrl from API (which consolidates avatar_image and image_url)
   if (character.imageUrl) {
-    return character.imageUrl;
+    // Check if it's already a full URL (http/https)
+    if (character.imageUrl.startsWith('http')) {
+      return character.imageUrl;
+    }
+    // If it's a relative path, construct the backend URL using API config
+    const baseUrl = getApiBaseUrl();
+    return `${baseUrl}${character.imageUrl.startsWith('/') ? character.imageUrl : `/${character.imageUrl}`}`;
   }
   
-  // Fallback to generated avatar
-  const name = character.name || 'Character';
-  return `https://api.dicebear.com/7.x/personas/svg?seed=${encodeURIComponent(name)}&backgroundColor=1e293b,334155,475569&scale=110`;
+  // Use consistent fallback generation from image utility
+  const characterName = character.name || 'Character';
+  return generateFallbackImageUrl(characterName, 'character');
 };
 
 /**
  * Gets the image URL for a setting with type-based theming
  */
 export const getSettingImage = (setting: SettingItem): string => {
-  // Use custom uploaded image if available
-  if (setting.imageUrl) {
-    return setting.imageUrl;
+  // Use custom uploaded image if available (check for non-empty string)
+  if (setting.imageUrl && setting.imageUrl.trim() !== '') {
+    // Check if it's already a full URL (http/https)
+    if (setting.imageUrl.startsWith('http')) {
+      return setting.imageUrl;
+    }
+    // If it's a relative path, construct the backend URL using API config
+    const baseUrl = getApiBaseUrl();
+    return `${baseUrl}${setting.imageUrl.startsWith('/') ? setting.imageUrl : `/${setting.imageUrl}`}`;
   }
   
-  // Generate a default themed image based on setting type and name
+  // Use consistent fallback generation from image utility
   const settingName = setting.name || 'Setting';
-  const settingType = setting.settingType || 'general';
-  const seed = encodeURIComponent(`${settingName}-${settingType}`);
-  
-  // Return different default images based on setting type
-  switch (settingType.toLowerCase()) {
-    case 'fantasy':
-      return `https://images.unsplash.com/photo-1518709268805-4e9042af2176?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80&seed=${seed}`;
-    case 'modern':
-      return `https://images.unsplash.com/photo-1449824913935-59a10b8d2000?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80&seed=${seed}`;
-    case 'sci-fi':
-      return `https://images.unsplash.com/photo-1446776653964-20c1d3a81b06?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80&seed=${seed}`;
-    case 'historical':
-      return `https://images.unsplash.com/photo-1465188162913-8fb5709d6d57?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80&seed=${seed}`;
-    case 'general':
-    default:
-      return `https://images.unsplash.com/photo-1518709268805-4e9042af2176?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80&seed=${seed}`;
-  }
+  return generateFallbackImageUrl(settingName, 'setting');
 };
 
 /**
@@ -110,26 +109,16 @@ export const getLocationImage = (location: {
 }, index: number = 0): string => {
   // Use custom uploaded image if available
   if (location.imageUrl) {
-    return location.imageUrl;
+    // Check if it's already a full URL (http/https)
+    if (location.imageUrl.startsWith('http')) {
+      return location.imageUrl;
+    }
+    // If it's a relative path, construct the backend URL using API config
+    const baseUrl = getApiBaseUrl();
+    return `${baseUrl}${location.imageUrl.startsWith('/') ? location.imageUrl : `/${location.imageUrl}`}`;
   }
   
-  // Generate a default themed image based on location type and name
+  // Use consistent fallback generation from image utility
   const locationName = location.name || `Location ${index + 1}`;
-  const locationType = location.locationType || 'room';
-  const seed = encodeURIComponent(`${locationName}-${locationType}-${index}`);
-  
-  // Return different default images based on location type
-  switch (locationType.toLowerCase()) {
-    case 'outdoor':
-      return `https://picsum.photos/seed/${seed}-outdoor/400/300`;
-    case 'building':
-      return `https://picsum.photos/seed/${seed}-building/400/300`;
-    case 'landmark':
-      return `https://picsum.photos/seed/${seed}-landmark/400/300`;
-    case 'vehicle':
-      return `https://picsum.photos/seed/${seed}-vehicle/400/300`;
-    case 'room':
-    default:
-      return `https://picsum.photos/seed/${seed}-room/400/300`;
-  }
+  return generateFallbackImageUrl(locationName, 'location', index);
 };

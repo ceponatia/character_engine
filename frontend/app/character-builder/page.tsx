@@ -5,6 +5,8 @@ import { useForm } from 'react-hook-form';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getApiUrl } from '../utils/api-config';
+import { processCharacterPlaceholders } from '../utils/placeholders';
+import { BackButton } from '../components/UI/ActionButtons';
 
 interface CharacterFormData {
   // Identity
@@ -183,8 +185,24 @@ function CharacterBuilderContent() {
   };
 
   const onSubmit = async (data: CharacterFormData) => {
+    // Helper function to recursively process all {{char}} placeholders in the data
+    const processAllPlaceholders = (obj: any): any => {
+      if (typeof obj === 'string') {
+        return processCharacterPlaceholders(obj, data.name);
+      } else if (Array.isArray(obj)) {
+        return obj.map(processAllPlaceholders);
+      } else if (obj && typeof obj === 'object') {
+        const processed: any = {};
+        for (const [key, value] of Object.entries(obj)) {
+          processed[key] = processAllPlaceholders(value);
+        }
+        return processed;
+      }
+      return obj;
+    };
+
     const characterData = {
-      characterBio: {
+      characterBio: processAllPlaceholders({
         name: data.name,
         identity: {
           sourceMaterial: data.sourceMaterial,
@@ -237,7 +255,7 @@ function CharacterBuilderContent() {
           interactionPolicy: data.interactionPolicy,
           conflictResolution: data.conflictResolution
         }
-      }
+      })
     };
     
     try {
@@ -331,9 +349,7 @@ function CharacterBuilderContent() {
         <div className="container mx-auto px-4 py-8">
           <div className="mb-8">
             <div className="flex gap-4 mb-6">
-              <Link href="/" className="btn-romantic-outline">
-                ← Home
-              </Link>
+              <BackButton />
               <Link href="/characters" className="btn-romantic-outline">
                 ← Back to Characters
               </Link>
@@ -351,9 +367,7 @@ function CharacterBuilderContent() {
       <div className="container mx-auto px-4 py-6">
         <div className="mb-6">
           <div className="flex gap-4 mb-4">
-            <Link href="/" className="btn-romantic-outline">
-              ← Home
-            </Link>
+            <BackButton />
             <Link href="/characters" className="btn-romantic-outline">
               ← Back to Characters
             </Link>

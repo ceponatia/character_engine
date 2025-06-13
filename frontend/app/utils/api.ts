@@ -87,6 +87,7 @@ export async function apiFetch<T = any>(
         'Content-Type': 'application/json',
         ...options.headers,
       },
+      credentials: 'include', // Include cookies for authentication
       ...options,
     });
     
@@ -336,4 +337,4 @@ export class ApiClient {
 export const charactersApi = new ApiClient('/api/characters');
 export const settingsApi = new ApiClient('/api/settings');
 export const locationsApi = new ApiClient('/api/locations');
-export const storiesApi = new ApiClient('/api/chat-sessions');
+export const storiesApi = new ApiClient('/api/stories');

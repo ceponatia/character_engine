@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { getApiUrl } from '../../utils/api-config';
-import { getLocationImage, formatDate } from '../../utils/helpers';
+import { getLocationImage, formatDate, getSettingImage } from '../../utils/helpers';
+import { parseMoodField, parseThemeField, parseTimeOfDayField } from '../../utils/field-parsing';
 
 interface Location {
   id?: string;
@@ -95,11 +96,10 @@ export default function SettingDetails() {
     }
   };
 
-  const getDefaultImageUrl = () => {
-    if (setting?.name) {
-      return `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(setting.name)}&backgroundColor=1e293b,374151,0f172a`;
-    }
-    return '';
+  // Removed redundant getDefaultImageUrl - using getSettingImage helper instead
+
+  const getThemeDisplay = (): string => {
+    return parseThemeField(setting?.theme);
   };
 
 
@@ -113,9 +113,6 @@ export default function SettingDetails() {
         <div className="container mx-auto px-4 py-8">
           <div className="mb-8">
             <div className="flex gap-4 mb-6">
-              <Link href="/" className="btn-romantic-outline">
-                ← Home
-              </Link>
               <Link href="/library?type=settings" className="btn-romantic-outline">
                 ← Back to Settings
               </Link>
@@ -137,9 +134,6 @@ export default function SettingDetails() {
         <div className="container mx-auto px-4 py-8">
           <div className="mb-8">
             <div className="flex gap-4 mb-6">
-              <Link href="/" className="btn-romantic-outline">
-                ← Home
-              </Link>
               <Link href="/library?type=settings" className="btn-romantic-outline">
                 ← Back to Settings
               </Link>
@@ -164,9 +158,6 @@ export default function SettingDetails() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex gap-4 mb-6">
-            <Link href="/" className="btn-romantic-outline">
-              ← Home
-            </Link>
             <Link href="/library?type=settings" className="btn-romantic-outline">
               ← Back to Settings
             </Link>
@@ -176,23 +167,11 @@ export default function SettingDetails() {
           <div className="flex flex-col lg:flex-row gap-8 items-start">
             <div className="flex-shrink-0">
               <div className="w-48 h-48 rounded-2xl overflow-hidden shadow-xl border-2 border-rose-500/30">
-                {setting.imageUrl ? (
-                  <img 
-                    src={setting.imageUrl} 
-                    alt="Setting preview" 
-                    className="w-full h-full object-cover"
-                  />
-                ) : setting.name ? (
-                  <img 
-                    src={getDefaultImageUrl()} 
-                    alt="Default setting image" 
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-slate-900/80 flex items-center justify-center">
-                    <span className="text-6xl">🏰</span>
-                  </div>
-                )}
+                <img 
+                  src={getSettingImage(setting)} 
+                  alt={`${setting.name} setting`} 
+                  className="w-full h-full object-cover"
+                />
               </div>
             </div>
             <div className="flex-1">
@@ -257,19 +236,19 @@ export default function SettingDetails() {
               {setting.theme && (
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-medium text-slate-400">Theme</label>
-                  <span className="text-slate-200">{setting.theme}</span>
+                  <span className="text-slate-200">{getThemeDisplay()}</span>
                 </div>
               )}
               {setting.mood && (
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-medium text-slate-400">Mood</label>
-                  <span className="text-slate-200">{setting.mood}</span>
+                  <span className="text-slate-200">{parseMoodField(setting.mood)}</span>
                 </div>
               )}
               {setting.timeOfDay && (
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-medium text-slate-400">Time of Day</label>
-                  <span className="text-slate-200">{setting.timeOfDay}</span>
+                  <span className="text-slate-200">{parseTimeOfDayField(setting.timeOfDay)}</span>
                 </div>
               )}
             </div>
@@ -295,7 +274,7 @@ export default function SettingDetails() {
 
         {/* Locations Section */}
         {setting.locations && setting.locations.length > 0 && (
-          <div className="card-romantic p-6 col-span-full">
+          <div className="card-romantic p-6 col-span-full mt-6">
             <h2 className="text-xl font-bold text-rose-400 mb-6 flex items-center gap-2">
               📍 Locations ({setting.locations.length})
             </h2>
@@ -346,7 +325,7 @@ export default function SettingDetails() {
 
         {/* No Locations State */}
         {(!setting.locations || setting.locations.length === 0) && (
-          <div className="card-romantic p-6 col-span-full">
+          <div className="card-romantic p-6 col-span-full mt-6">
             <div className="text-center py-12">
               <div className="text-6xl mb-4">📍</div>
               <h3 className="text-xl font-bold text-slate-300 mb-2">No Locations Defined</h3>

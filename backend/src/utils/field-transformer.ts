@@ -3,6 +3,7 @@
  * Converts snake_case database fields to camelCase for frontend consumption
  */
 
+
 /**
  * Convert snake_case string to camelCase
  */
@@ -61,8 +62,7 @@ export function transformCharacter(character: any): any {
     attire: character.attire,
     colors: character.colors || [],
     features: character.features,
-    imageUrl: character.avatar_image || character.image_url, // Consolidate image fields
-    avatarImage: character.avatar_image,
+    imageUrl: character.image_url,
     
     // Vocal Style
     tone: character.tone || [],
@@ -120,7 +120,7 @@ export function transformCharacterSummary(character: any): any {
     primaryTraits: character.primary_traits || [],
     colors: character.colors || [],
     tone: character.tone || [],
-    imageUrl: character.avatar_image || character.image_url,
+    imageUrl: character.image_url,
     ownerId: character.owner_id
   };
 }
@@ -176,7 +176,7 @@ export function transformLocation(location: any): any {
 }
 
 /**
- * Chat session-specific field transformations
+ * Chat session-specific field transformations (legacy)
  */
 export function transformChatSession(session: any): any {
   if (!session) return null;
@@ -199,7 +199,30 @@ export function transformChatSession(session: any): any {
 }
 
 /**
- * Chat message-specific field transformations
+ * Story-specific field transformations (replaces chat session)
+ */
+export function transformStory(story: any): any {
+  if (!story) return null;
+  
+  return {
+    id: story.id,
+    name: story.name,
+    createdAt: story.created_at,
+    updatedAt: story.updated_at,
+    lastActivity: story.last_activity,
+    settingId: story.setting_id,
+    ownerId: story.owner_id,
+    characterId: story.character_id,
+    
+    // Handle nested relations
+    character: story.characters ? transformCharacterSummary(story.characters) : null,
+    settings: story.settings ? transformSetting(story.settings) : null,
+    messages: story.messages?.map((msg: any) => transformStoryMessage(msg)) || []
+  };
+}
+
+/**
+ * Chat message-specific field transformations (legacy)
  */
 export function transformChatMessage(message: any): any {
   if (!message) return null;
@@ -211,6 +234,22 @@ export function transformChatMessage(message: any): any {
     characterId: message.character_id,
     timestamp: message.timestamp,
     chatSessionId: message.chat_session_id
+  };
+}
+
+/**
+ * Story message-specific field transformations (replaces chat message)
+ */
+export function transformStoryMessage(message: any): any {
+  if (!message) return null;
+  
+  return {
+    id: message.id,
+    content: message.content,
+    sender: message.sender,
+    characterId: message.character_id,
+    timestamp: message.timestamp,
+    storyId: message.story_id
   };
 }
 

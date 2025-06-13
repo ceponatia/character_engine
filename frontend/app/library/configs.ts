@@ -125,7 +125,7 @@ export const locationsConfig: LibraryConfig = {
     primary: 'name',
     secondary: 'atmosphere',
     description: 'description',
-    metadata: ['details'],
+    // No metadata for now since details is a complex object that needs special handling
   },
   
   imageConfig: {
@@ -171,7 +171,7 @@ export const storiesConfig: LibraryConfig = {
   title: 'Stories',
   subtitle: 'Continue your ongoing conversations and adventures',
   icon: '📚',
-  apiEndpoint: '/api/chat-sessions',
+  apiEndpoint: '/api/stories',
   
   displayFields: {
     primary: 'name',
@@ -190,8 +190,8 @@ export const storiesConfig: LibraryConfig = {
     },
     custom: [
       {
-        label: 'Resume Chat',
-        href: (id) => `/chat/${id}`,
+        label: 'Resume Story',
+        href: (id) => `/stories/${id}/chat`,
         className: 'btn-romantic-primary text-sm',
       },
     ],

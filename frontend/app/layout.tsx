@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import Header from './components/Header'
 import Footer from './components/Footer'
-import HamburgerMenu from './components/HamburgerMenu'
+import { AuthProvider } from './context/AuthContext'
 
 export const metadata: Metadata = {
   title: 'CharacterEngine AI',
@@ -17,12 +17,13 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="min-h-screen bg-romantic-gradient text-slate-100 font-sans antialiased flex flex-col">
-        <Header />
-        <HamburgerMenu />
-        <main className="flex-1">
-          {children}
-        </main>
-        <Footer />
+        <AuthProvider>
+          <Header />
+          <main className="flex-1">
+            {children}
+          </main>
+          <Footer />
+        </AuthProvider>
       </body>
     </html>
   )

@@ -8,6 +8,7 @@ import ConfirmationModal from '../components/UI/ConfirmationModal';
 import { LoadingStates } from '../components/UI/LoadingSpinner';
 import { ErrorStates } from '../components/UI/ErrorCard';
 import SafeImage from '../components/UI/SafeImage';
+import { BackButton } from '../components/UI/ActionButtons';
 import { truncateText, getCharacterAvatar, formatRelativeTime } from '../utils/helpers';
 
 interface Character {
@@ -137,9 +138,9 @@ export default function CharactersPage() {
         <div className="mb-8">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8">
             <div>
-              <Link href="/" className="inline-flex items-center text-rose-400 hover:text-rose-300 transition-colors mb-4">
-                ← Back to Home
-              </Link>
+              <div className="mb-4">
+                <BackButton />
+              </div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-rose-400 to-pink-400 bg-clip-text text-transparent mb-2">
                 Your Characters
               </h1>

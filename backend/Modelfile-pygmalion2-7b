@@ -1,0 +1,11 @@
+FROM ./pygmalion-2-7b.Q4_K_M.gguf
+
+TEMPLATE "<|system|>{{ .System }}<|user|>{{ .Prompt }}<|model|>"
+
+SYSTEM "Enter RP mode. You are a character roleplay assistant designed for conversational AI and fiction writing."
+
+PARAMETER stop "<|user|>"
+PARAMETER stop "<|system|>"
+PARAMETER stop "<|model|>"
+PARAMETER temperature 0.7
+PARAMETER repeat_penalty 1.1

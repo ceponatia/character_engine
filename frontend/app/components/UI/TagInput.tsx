@@ -12,6 +12,11 @@ interface TagInputProps {
   disabled?: boolean;
   maxTags?: number;
   suggestions?: string[];
+  // Optional select dropdown for types/categories
+  selectValue?: string;
+  selectOptions?: Array<{ value: string; label: string }>;
+  onSelectChange?: (value: string) => void;
+  selectLabel?: string;
 }
 
 export default function TagInput({
@@ -22,7 +27,11 @@ export default function TagInput({
   className = "",
   disabled = false,
   maxTags,
-  suggestions = []
+  suggestions = [],
+  selectValue,
+  selectOptions,
+  onSelectChange,
+  selectLabel
 }: TagInputProps) {
   // Convert input value to array format
   const currentTags = Array.isArray(value) ? value : parseCommaSeparatedTags(value || '');
@@ -50,10 +59,13 @@ export default function TagInput({
   };
 
   const handleInputBlur = () => {
-    setShowSuggestions(false);
-    // Clean up the display format on blur
-    const cleanedDisplay = formatTagsToCommaSeparated(currentTags);
-    setInputValue(cleanedDisplay);
+    // Add a small delay to allow suggestion clicks to register
+    setTimeout(() => {
+      setShowSuggestions(false);
+      // Clean up the display format on blur
+      const cleanedDisplay = formatTagsToCommaSeparated(currentTags);
+      setInputValue(cleanedDisplay);
+    }, 150);
   };
 
   const handleInputFocus = () => {
@@ -64,8 +76,10 @@ export default function TagInput({
 
   const addSuggestion = (suggestion: string) => {
     const newTags = [...currentTags];
-    if (!newTags.includes(suggestion)) {
-      newTags.push(suggestion);
+    // Capitalize the suggestion before adding it
+    const capitalizedSuggestion = suggestion.charAt(0).toUpperCase() + suggestion.slice(1).toLowerCase();
+    if (!newTags.some(tag => tag.toLowerCase() === suggestion.toLowerCase())) {
+      newTags.push(capitalizedSuggestion);
       const limitedTags = maxTags ? newTags.slice(0, maxTags) : newTags;
       onChange(limitedTags);
       setInputValue(formatTagsToCommaSeparated(limitedTags));
@@ -96,6 +110,29 @@ export default function TagInput({
           </span>
         )}
       </label>
+      
+      {/* Optional select dropdown */}
+      {selectOptions && selectOptions.length > 0 && (
+        <div className="relative mb-3">
+          {selectLabel && (
+            <label className="block text-xs font-medium text-slate-400 mb-1">
+              {selectLabel}
+            </label>
+          )}
+          <select
+            value={selectValue || ''}
+            onChange={(e) => onSelectChange?.(e.target.value)}
+            disabled={disabled}
+            className="input-romantic w-full disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {selectOptions.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       
       {/* Tag display area */}
       {currentTags.length > 0 && (
@@ -130,12 +167,12 @@ export default function TagInput({
           onFocus={handleInputFocus}
           placeholder={placeholder}
           disabled={disabled}
-          className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 text-slate-100 rounded-lg transition-all duration-200 placeholder:text-slate-400 hover:shadow-lg hover:shadow-rose-500/20 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 focus:shadow-xl focus:shadow-rose-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="input-romantic w-full disabled:opacity-50 disabled:cursor-not-allowed"
         />
         
         {/* Suggestions dropdown */}
         {showSuggestions && availableSuggestions.length > 0 && (
-          <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-lg">
+          <div className="absolute w-full mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl">
             <div className="max-h-40 overflow-y-auto">
               {availableSuggestions.slice(0, 8).map((suggestion, index) => (
                 <button
@@ -144,7 +181,7 @@ export default function TagInput({
                   onClick={() => addSuggestion(suggestion)}
                   className="w-full px-4 py-2 text-left text-slate-300 hover:bg-slate-700 transition-colors first:rounded-t-lg last:rounded-b-lg"
                 >
-                  {suggestion}
+                  {suggestion.charAt(0).toUpperCase() + suggestion.slice(1).toLowerCase()}
                 </button>
               ))}
             </div>

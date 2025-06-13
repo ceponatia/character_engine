@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { getApiUrl } from '../utils/api-config';
-import { truncateCardTitle, truncateCardDescription } from '../utils/helpers';
+import { getApiUrl, getApiBaseUrl } from '../utils/api-config';
+import { truncateCardTitle, truncateCardDescription, getCharacterAvatar, getSettingImage } from '../utils/helpers';
+import { parseFieldValue, parseMetadataFields } from '../utils/field-parsing';
 import LibraryCard from '../components/UI/LibraryCard';
 import { SelectionOverlay } from '../components/UI/StableCard';
+import { LibraryActions, ConfirmDeleteButton, BackButton } from '../components/UI/ActionButtons';
 
 export interface LibraryItem {
   id: string;
@@ -141,7 +143,7 @@ export default function LibraryTemplate({ config }: LibraryTemplateProps) {
       const data = await response.json();
       // Handle different response formats
       const itemsArray = Array.isArray(data) ? data : 
-                        data.data || data.items || data.sessions || data.characters || data.settings || data.locations || data[Object.keys(data)[0]] || [];
+                        data.data || data.items || data.stories || data.sessions || data.characters || data.settings || data.locations || data[Object.keys(data)[0]] || [];
       
       // Ensure we always set an array
       setItems(Array.isArray(itemsArray) ? itemsArray : []);
@@ -176,31 +178,58 @@ export default function LibraryTemplate({ config }: LibraryTemplateProps) {
     });
   }, [items, searchTerm, filterValue, config]);
 
-  // Get image for item
+  // Get image for item using appropriate utility function
   const getItemImage = (item: LibraryItem) => {
+    // Use specific helper functions based on content type
+    if (config.title === 'Characters') {
+      return getCharacterAvatar(item);
+    }
+    if (config.title === 'Settings') {
+      return getSettingImage(item);
+    }
+    
+    // For other types, use the imageUrl field directly with proper handling
     const imageField = config.displayFields.image;
     if (imageField && getNestedValue(item, imageField)) {
-      return getNestedValue(item, imageField);
+      const imageUrl = getNestedValue(item, imageField);
+      // Check if it's already a full URL (http/https)
+      if (imageUrl.startsWith('http')) {
+        return imageUrl;
+      }
+      // If it's a relative path, construct the backend URL using API config
+      const baseUrl = getApiBaseUrl();
+      return `${baseUrl}${imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`}`;
     }
     return null; // Let getDefaultImage handle fallbacks
   };
 
-  // Get default image for item when no image is available
-  const getDefaultImage = (item: LibraryItem) => {
-    if (!config.imageConfig) {
-      return `https://api.dicebear.com/7.x/personas/svg?seed=${encodeURIComponent(item.name || item.id)}&backgroundColor=1e293b,334155,475569&scale=110`;
-    }
+  // Get appropriate image for item using proper helper functions
+  const getProperItemImage = (item: LibraryItem) => {
+    // Use type-specific helper functions based on the library type
+    const endpointType = config.apiEndpoint.split('/').pop(); // Extract type from endpoint
     
-    switch (config.imageConfig.fallbackType) {
-      case 'avatar':
-        const seed = config.imageConfig.avatarSeed?.(item) || item.name || item.id;
-        return `https://api.dicebear.com/7.x/personas/svg?seed=${encodeURIComponent(seed)}&backgroundColor=1e293b,334155,475569&scale=110`;
-      case 'gradient':
-        // For gradient types, use a generated image instead of pure CSS
-        return `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(item.name || item.id)}&backgroundColor=1e293b,374151,0f172a`;
-      case 'none':
+    switch (endpointType) {
+      case 'characters':
+        return getCharacterAvatar(item);
+      case 'settings':
+        return getSettingImage(item);
       default:
-        return `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(item.name || item.id)}&backgroundColor=1e293b,334155,475569&scale=110`;
+        // For other types, fall back to the existing logic
+        if (!config.imageConfig) {
+          return `https://api.dicebear.com/7.x/personas/svg?seed=${encodeURIComponent(item.name || item.id)}&backgroundColor=1e293b,334155,475569&scale=110`;
+        }
+        
+        switch (config.imageConfig.fallbackType) {
+          case 'avatar':
+            const seed = config.imageConfig.avatarSeed?.(item) || item.name || item.id;
+            return `https://api.dicebear.com/7.x/personas/svg?seed=${encodeURIComponent(seed)}&backgroundColor=1e293b,334155,475569&scale=110`;
+          case 'gradient':
+            // For gradient types, use shapes with consistent colors
+            return `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(item.name || item.id)}&backgroundColor=1e293b,374151,0f172a`;
+          case 'none':
+          default:
+            return `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(item.name || item.id)}&backgroundColor=1e293b,334155,475569&scale=110`;
+        }
     }
   };
 
@@ -223,7 +252,22 @@ export default function LibraryTemplate({ config }: LibraryTemplateProps) {
     }
   };
 
-  // Handle delete
+  // Handle delete mode toggle
+  const toggleDeleteMode = () => {
+    setDeleteMode(!deleteMode);
+  };
+
+  // Handle clearing selections
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  // Handle delete confirmation
+  const handleDeleteConfirm = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  // Handle actual delete
   const handleDelete = async () => {
     try {
       const deletePromises = Array.from(selectedIds).map(id =>
@@ -283,15 +327,15 @@ export default function LibraryTemplate({ config }: LibraryTemplateProps) {
   }
 
   return (
-    <div className="min-h-screen p-6 mr-20">
+    <div className="min-h-screen p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8">
             <div>
-              <Link href="/" className="inline-flex items-center text-rose-400 hover:text-rose-300 transition-colors mb-4">
-                ← Back to Home
-              </Link>
+              <div className="mb-4">
+                <BackButton />
+              </div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-rose-400 to-pink-400 bg-clip-text text-transparent mb-2">
                 {config.icon} {config.title}
               </h1>
@@ -337,50 +381,40 @@ export default function LibraryTemplate({ config }: LibraryTemplateProps) {
               )}
               
               {config.features?.filter && (
-                <select
-                  value={filterValue}
-                  onChange={(e) => setFilterValue(e.target.value)}
-                  className="input-romantic w-48 pr-8"
-                >
-                  <option value="">All Tags</option>
-                  {config.features.filter.options.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative z-[100]">
+                  <select
+                    value={filterValue}
+                    onChange={(e) => setFilterValue(e.target.value)}
+                    className="input-romantic w-48 pr-8"
+                  >
+                    <option value="">All Tags</option>
+                    {config.features.filter.options.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
             </div>
 
             <div className="flex gap-4">
-              {config.actions.create && (
-                <Link href={config.actions.create.href} className="btn-romantic-primary">
-                  {config.actions.create.label}
-                </Link>
-              )}
-              {config.features?.bulkSelect && (
-                !deleteMode ? (
-                  <button
-                    onClick={() => {
-                      setDeleteMode(true);
-                      setSelectedIds(new Set());
-                    }}
-                    className="btn-romantic-outline"
-                  >
-                    Delete
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setDeleteMode(false);
-                      setSelectedIds(new Set());
-                    }}
-                    className="btn-romantic-outline"
-                  >
-                    Cancel
-                  </button>
-                )
-              )}
+              <LibraryActions
+                hasItems={filteredItems.length > 0}
+                deleteMode={deleteMode}
+                selectedCount={selectedIds.size}
+                onDeleteToggle={toggleDeleteMode}
+                onDeleteConfirm={handleDeleteConfirm}
+                onClearSelection={clearSelection}
+                separateConfirmButton={true}
+                customActions={
+                  config.actions.create && (
+                    <Link href={config.actions.create.href} className="btn-romantic-primary">
+                      {config.actions.create.label}
+                    </Link>
+                  )
+                }
+              />
             </div>
           </div>
         </div>
@@ -428,18 +462,16 @@ export default function LibraryTemplate({ config }: LibraryTemplateProps) {
                   
                   // Prepare tags from metadata
                   const itemTags = config.displayFields.metadata 
-                    ? config.displayFields.metadata
-                        .map(field => getNestedValue(item, field))
-                        .filter(Boolean)
-                        .slice(0, 3)
+                    ? parseMetadataFields(item, config.displayFields.metadata, getNestedValue)
                     : [];
 
                   return (
                     <div key={item.id} className="relative">
                       <LibraryCard
-                        image={image || getDefaultImage(item)}
+                        image={getProperItemImage(item)}
                         title={getNestedValue(item, config.displayFields.primary) || ''}
-                        subtitle={config.displayFields.secondary ? getNestedValue(item, config.displayFields.secondary) : undefined}
+                        subtitle={config.displayFields.secondary ? 
+                          parseFieldValue(getNestedValue(item, config.displayFields.secondary), config.displayFields.secondary) : undefined}
                         tags={itemTags}
                         createdAt={item.createdAt}
                         isInteractive={deleteMode}
@@ -462,12 +494,10 @@ export default function LibraryTemplate({ config }: LibraryTemplateProps) {
             {/* Delete Action Buttons */}
             {deleteMode && selectedIds.size > 0 && (
               <div className="mt-6 flex justify-end w-full max-w-6xl">
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg transition-colors"
-                >
-                  Confirm Delete ({selectedIds.size})
-                </button>
+                <ConfirmDeleteButton
+                  selectedCount={selectedIds.size}
+                  onDeleteConfirm={handleDeleteConfirm}
+                />
               </div>
             )}
           </div>

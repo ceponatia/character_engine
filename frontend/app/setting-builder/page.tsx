@@ -4,10 +4,79 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { getApiUrl } from '../utils/api-config';
-import ImageUploadArea from '../components/UI/ImageUploadArea';
+import { getSettingImage, getLocationImage } from '../utils/helpers';
+import { parseJsonField } from '../utils/field-parsing';
+import { SettingImageUpload, LocationImageUpload } from '../components/UI/EnhancedImageUpload';
+import { uploadImage, uploadBatchImages } from '../utils/image-upload';
 import ConfirmationModal from '../components/UI/ConfirmationModal';
 import TagInput from '../components/UI/TagInput';
 import { processTagInput, formatTagsToCommaSeparated } from '../utils/tag-parsing';
+import { BackButton } from '../components/UI/ActionButtons';
+
+// Custom dropdown component that matches TagInput styling
+function LocationTypeDropdown({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  const options = [
+    { value: 'room', label: 'Room' },
+    { value: 'building', label: 'Building' },
+    { value: 'outdoor', label: 'Outdoor' },
+    { value: 'landmark', label: 'Landmark' },
+    { value: 'vehicle', label: 'Vehicle' }
+  ];
+  
+  const selectedOption = options.find(opt => opt.value === value) || options[0];
+  
+  return (
+    <div className="relative">
+      <label className="block text-sm font-medium text-slate-300 mb-2">
+        Location Type
+      </label>
+      
+      {/* Button that looks like input */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="input-romantic w-full text-left flex items-center justify-between"
+      >
+        <span>{selectedOption.label}</span>
+        <span className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
+          ▼
+        </span>
+      </button>
+      
+      {/* Custom dropdown */}
+      {isOpen && (
+        <>
+          {/* Backdrop to close dropdown */}
+          <div
+            className="fixed inset-0"
+            onClick={() => setIsOpen(false)}
+          />
+          
+          {/* Dropdown options */}
+          <div className="absolute w-full mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl">
+            <div className="max-h-40 overflow-y-auto">
+              {options.map((option, index) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(option.value);
+                    setIsOpen(false);
+                  }}
+                  className="w-full px-4 py-2 text-left text-slate-300 hover:bg-slate-700 transition-colors first:rounded-t-lg last:rounded-b-lg"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 interface Location {
   id?: string;
@@ -62,6 +131,7 @@ function SettingBuilderContent() {
   const [currentLocationIndex, setCurrentLocationIndex] = useState(0);
   const [validationErrors, setValidationErrors] = useState<{[key: string]: boolean}>({});
   const [showValidationModal, setShowValidationModal] = useState(false);
+  const [validationMessage, setValidationMessage] = useState('');
 
   // Load setting data if in edit mode
   useEffect(() => {
@@ -87,8 +157,8 @@ function SettingBuilderContent() {
           plot: settingData.plot || '',
           settingType: settingData.setting_type || 'general',
           timeOfDay: settingData.time_of_day || '',
-          mood: processTagInput(settingData.mood || ''),
-          theme: processTagInput(settingData.theme || ''),
+          mood: processTagInput(parseJsonField(settingData.mood) || ''),
+          theme: processTagInput(parseJsonField(settingData.theme) || ''),
           imageUrl: settingData.image_url || '',
           locations: settingData.locations?.map((loc: any) => ({
             id: loc.id,
@@ -96,16 +166,29 @@ function SettingBuilderContent() {
             description: loc.description || '',
             details: loc.details || '',
             locationType: loc.location_type || 'room',
-            ambiance: processTagInput(loc.ambiance || ''),
-            lighting: processTagInput(loc.lighting || ''),
+            ambiance: processTagInput(parseJsonField(loc.ambiance) || ''),
+            lighting: processTagInput(parseJsonField(loc.lighting) || ''),
             imageUrl: loc.image_url || ''
-          })) || [{ name: '', description: '' }]
+          })) || [{ name: '', description: '', ambiance: [], lighting: [] }]
         });
         
-        // Set image preview if exists
+        // Set image preview if exists - use helper to construct proper URL
         if (settingData.image_url) {
-          setImagePreview(settingData.image_url);
+          setImagePreview(getSettingImage({ imageUrl: settingData.image_url, name: settingData.name, settingType: settingData.setting_type }));
         }
+        
+        // Set location image previews if they exist
+        const newLocationPreviews: {[key: number]: string} = {};
+        settingData.locations?.forEach((loc: any, index: number) => {
+          if (loc.image_url) {
+            newLocationPreviews[index] = getLocationImage({ 
+              imageUrl: loc.image_url, 
+              name: loc.name, 
+              locationType: loc.location_type 
+            }, index);
+          }
+        });
+        setLocationImagePreviews(newLocationPreviews);
       } else {
         alert('Failed to load setting for editing');
         router.push('/library?type=settings');
@@ -124,7 +207,7 @@ function SettingBuilderContent() {
       const response = await fetch(getApiUrl('/api/locations'));
       if (response.ok) {
         const data = await response.json();
-        setExistingLocations(data.locations || []);
+        setExistingLocations(data.data || []); // Fix: API returns data.data, not data.locations
       }
     } catch (error) {
       console.error('Failed to fetch locations:', error);
@@ -248,30 +331,60 @@ function SettingBuilderContent() {
       errors.plot = true;
     }
     
-    // Check required location fields - first location is always required
-    const firstLocation = setting.locations[0];
-    if (!firstLocation?.name.trim()) {
-      errors[`location_name_0`] = true;
-    }
-    if (!firstLocation?.description.trim()) {
-      errors[`location_description_0`] = true;
+    // Check location fields - require at least one location with name and description
+    if (!setting.locations || setting.locations.length === 0) {
+      errors[`no_locations`] = true;
+    } else {
+      const firstLocation = setting.locations[0];
+      if (!firstLocation?.name?.trim()) {
+        errors[`location_name_0`] = true;
+      }
+      if (!firstLocation?.description?.trim()) {
+        errors[`location_description_0`] = true;
+      }
     }
     
     // For additional locations, if they have any content, both fields are required
-    setting.locations.forEach((location, index) => {
-      if (index > 0 && (location.name.trim() || location.description.trim())) {
-        if (!location.name.trim()) {
-          errors[`location_name_${index}`] = true;
+    if (setting.locations && setting.locations.length > 0) {
+      setting.locations.forEach((location, index) => {
+        if (index > 0 && (location.name.trim() || location.description.trim())) {
+          if (!location.name.trim()) {
+            errors[`location_name_${index}`] = true;
+          }
+          if (!location.description.trim()) {
+            errors[`location_description_${index}`] = true;
+          }
         }
-        if (!location.description.trim()) {
-          errors[`location_description_${index}`] = true;
-        }
-      }
-    });
+      });
+    }
     
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
+      
+      // Create specific error message
+      const missingFields = [];
+      if (errors.name) missingFields.push('Setting Name');
+      if (errors.description) missingFields.push('Setting Description');  
+      if (errors.plot) missingFields.push('Scenario Plot');
+      if (errors.no_locations) missingFields.push('At least one Location');
+      if (errors.location_name_0) missingFields.push('Location Name');
+      if (errors.location_description_0) missingFields.push('Location Description');
+      
+      const message = `Please fill out the following required fields:\n\n• ${missingFields.join('\n• ')}`;
+      setValidationMessage(message);
       setShowValidationModal(true);
+      
+      // Navigate to first error field for better UX
+      const firstErrorKey = Object.keys(errors)[0];
+      if (firstErrorKey.includes('location_') || firstErrorKey === 'no_locations') {
+        // If it's a location error, make sure user is viewing the locations section
+        if (firstErrorKey !== 'no_locations') {
+          const locationIndex = parseInt(firstErrorKey.split('_')[2]) || 0;
+          setCurrentLocationIndex(locationIndex);
+        }
+        // For no_locations error, the UI will show the "Add First Location" button
+      }
+      
       return;
     }
     
@@ -280,24 +393,20 @@ function SettingBuilderContent() {
 
     setIsSaving(true);
     try {
-      let imageUrl = setting.imageUrl || '';
+      // Upload setting image using new utility with proper preservation logic
+      const settingImageResult = await uploadImage(selectedImage, {
+        type: 'setting',
+        preserveExisting: true,
+        existingImageUrl: setting.imageUrl
+      });
       
-      // Upload image if selected
-      if (selectedImage) {
-        const formData = new FormData();
-        formData.append('image', selectedImage);
-        formData.append('type', 'setting');
-        
-        const imageResponse = await fetch(getApiUrl('/api/upload'), {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (imageResponse.ok) {
-          const imageData = await imageResponse.json();
-          imageUrl = imageData.imageUrl;
-        }
+      if (!settingImageResult.success && settingImageResult.error) {
+        alert(`Failed to upload setting image: ${settingImageResult.error}`);
+        setIsSaving(false);
+        return;
       }
+      
+      const finalSettingImageUrl = settingImageResult.imageUrl || setting.imageUrl || '';
 
       // Prepare setting data for API
       const settingData = {
@@ -308,7 +417,7 @@ function SettingBuilderContent() {
         time_of_day: setting.timeOfDay,
         mood: setting.mood, // Send as array for database storage
         theme: setting.theme, // Send as array for database storage
-        image_url: imageUrl || setting.imageUrl
+        image_url: finalSettingImageUrl
       };
 
       let response;
@@ -339,28 +448,26 @@ function SettingBuilderContent() {
           });
         }
         
+        // Upload all location images using batch utility
+        const existingLocationUrls: { [key: number]: string } = {};
+        setting.locations.forEach((location, index) => {
+          if (location.imageUrl) {
+            existingLocationUrls[index] = location.imageUrl;
+          }
+        });
+        
+        const locationImageUrls = await uploadBatchImages(locationImages, {
+          type: 'location',
+          preserveExisting: true,
+          existingUrls: existingLocationUrls,
+          nameSeed: (index) => setting.locations[index]?.name || `location-${index}`
+        });
+        
         // Handle locations separately - update/create as needed and link to setting
         for (let i = 0; i < setting.locations.length; i++) {
           const location = setting.locations[i];
           if (location.name.trim()) {
-            let locationImageUrl = location.imageUrl || '';
-            
-            // Upload location image if selected
-            if (locationImages[i]) {
-              const formData = new FormData();
-              formData.append('image', locationImages[i]!);
-              formData.append('type', 'location');
-              
-              const imageResponse = await fetch(getApiUrl('/api/upload'), {
-                method: 'POST',
-                body: formData
-              });
-              
-              if (imageResponse.ok) {
-                const imageData = await imageResponse.json();
-                locationImageUrl = imageData.imageUrl;
-              }
-            }
+            const locationImageUrl = locationImageUrls[i] || location.imageUrl || '';
             
             const locationData = {
               name: location.name,
@@ -369,10 +476,10 @@ function SettingBuilderContent() {
               ambiance: location.ambiance || [], // Send as array for database storage
               lighting: location.lighting || [], // Send as array for database storage
               image_url: locationImageUrl,
-              details: location.details ? JSON.parse(location.details) : {
+              details: location.details && typeof location.details === 'string' ? JSON.parse(location.details) : (location.details || {
                 lighting: location.lighting || [],
                 mood_enhancers: []
-              }
+              })
             };
 
             let locationId;
@@ -386,6 +493,11 @@ function SettingBuilderContent() {
               if (updateResponse.ok) {
                 const updateData = await updateResponse.json();
                 locationId = updateData.location.id;
+              } else {
+                console.error(`Failed to update location ${location.name}:`, await updateResponse.text());
+                alert(`Failed to update location "${location.name}". Please try again.`);
+                setIsSaving(false);
+                return;
               }
             } else {
               // Create new location
@@ -397,6 +509,11 @@ function SettingBuilderContent() {
               if (createResponse.ok) {
                 const createData = await createResponse.json();
                 locationId = createData.location.id;
+              } else {
+                console.error(`Failed to create location ${location.name}:`, await createResponse.text());
+                alert(`Failed to create location "${location.name}". Please try again.`);
+                setIsSaving(false);
+                return;
               }
             }
 
@@ -409,11 +526,19 @@ function SettingBuilderContent() {
                 role_in_setting: i === 0 ? 'main' : 'secondary'
               };
 
-              await fetch(getApiUrl('/api/setting-locations'), {
+              const linkResponse = await fetch(getApiUrl('/api/setting-locations'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(linkData)
               });
+              
+              if (!linkResponse.ok) {
+                console.error(`Failed to link location ${location.name} to setting:`, await linkResponse.text());
+                alert(`Failed to link location "${location.name}" to setting. The location was created but may not appear in the setting.`);
+              }
+            } else {
+              console.error(`No location ID returned for location: ${location.name}`);
+              alert(`Failed to process location "${location.name}". Please try again.`);
             }
           }
         }
@@ -451,9 +576,7 @@ function SettingBuilderContent() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center space-x-4 mb-6">
-            <Link href="/" className="text-rose-400 hover:text-rose-300 transition-colors">
-              ← Home
-            </Link>
+            <BackButton />
             <span className="text-slate-500">•</span>
             <Link href="/library?type=settings" className="text-rose-400 hover:text-rose-300 transition-colors">
               ← Back to Settings
@@ -499,16 +622,13 @@ function SettingBuilderContent() {
                 />
               </div>
 
-              <ImageUploadArea
+              <SettingImageUpload
                 label="Setting Image"
                 value={selectedImage}
-                preview={imagePreview}
+                existingImageUrl={setting.imageUrl}
                 onImageChange={handleImageChange}
-                onRemove={removeImage}
-                entityType="setting"
                 entityName={setting.name}
-                placeholder={{ emoji: '🏰', text: 'No image selected' }}
-                getDefaultImageUrl={getDefaultImageUrl}
+                showFallbackInfo={true}
               />
 
               <div>
@@ -562,13 +682,13 @@ function SettingBuilderContent() {
               {/* Setting tag fields at bottom */}
               <div className="mt-auto pt-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div>
+                  <div className="relative z-[9999]">
                     <label htmlFor="settingType" className="block text-sm font-medium text-slate-300 mb-2">
                       Setting Type
                     </label>
                     <select
                       id="settingType"
-                      className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 text-slate-100 rounded-lg transition-all duration-200 hover:shadow-lg hover:shadow-rose-500/20 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 focus:shadow-xl focus:shadow-rose-500/30"
+                      className="input-romantic w-full"
                       value={setting.settingType}
                       onChange={(e) => setSetting(prev => ({ ...prev, settingType: e.target.value }))}
                     >
@@ -580,23 +700,27 @@ function SettingBuilderContent() {
                     </select>
                   </div>
 
-                  <TagInput
-                    label="Theme"
-                    value={setting.theme || []}
-                    onChange={(tags) => setSetting(prev => ({ ...prev, theme: tags }))}
-                    placeholder="e.g., romantic, adventure, mystery"
-                    maxTags={5}
-                    suggestions={['romantic', 'adventure', 'mystery', 'horror', 'comedy', 'drama', 'fantasy', 'sci-fi', 'historical', 'modern']}
-                  />
+                  <div className="relative z-[9999]">
+                    <TagInput
+                      label="Theme"
+                      value={setting.theme || []}
+                      onChange={(tags) => setSetting(prev => ({ ...prev, theme: tags }))}
+                      placeholder="e.g., romantic, adventure, mystery"
+                      maxTags={5}
+                      suggestions={['romantic', 'adventure', 'mystery', 'horror', 'comedy', 'drama', 'fantasy', 'sci-fi', 'historical', 'modern']}
+                    />
+                  </div>
 
-                  <TagInput
-                    label="Mood"
-                    value={setting.mood || []}
-                    onChange={(tags) => setSetting(prev => ({ ...prev, mood: tags }))}
-                    placeholder="e.g., cozy, mysterious, energetic"
-                    maxTags={5}
-                    suggestions={['cozy', 'mysterious', 'energetic', 'peaceful', 'tense', 'exciting', 'melancholic', 'uplifting', 'dark', 'bright']}
-                  />
+                  <div className="relative z-[9999]">
+                    <TagInput
+                      label="Mood"
+                      value={setting.mood || []}
+                      onChange={(tags) => setSetting(prev => ({ ...prev, mood: tags }))}
+                      placeholder="e.g., cozy, mysterious, energetic"
+                      maxTags={5}
+                      suggestions={['cozy', 'mysterious', 'energetic', 'peaceful', 'tense', 'exciting', 'melancholic', 'uplifting', 'dark', 'bright']}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -606,9 +730,10 @@ function SettingBuilderContent() {
               <h2 className="text-2xl font-bold text-slate-100 mb-6">📍 Locations</h2>
             
             <div className="space-y-6 flex-grow">
-              {/* Current Location Form */}
-              {setting.locations[currentLocationIndex] && (
+              {/* Check if we have any locations */}
+              {setting.locations && setting.locations.length > 0 && setting.locations[currentLocationIndex] ? (
                 <>
+                  {/* Current Location Form */}
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-2">Location Name *</label>
                     <input
@@ -630,24 +755,13 @@ function SettingBuilderContent() {
                     />
                   </div>
 
-                  <ImageUploadArea
+                  <LocationImageUpload
                     label="Location Image"
                     value={locationImages[currentLocationIndex]}
-                    preview={locationImagePreviews[currentLocationIndex] || ''}
+                    existingImageUrl={setting.locations[currentLocationIndex]?.imageUrl}
                     onImageChange={(file) => handleLocationImageChange(currentLocationIndex, file)}
-                    onRemove={() => removeLocationImage(currentLocationIndex)}
-                    entityType="location"
                     entityName={setting.locations[currentLocationIndex]?.name}
-                    placeholder={{ emoji: '🏛️', text: 'No image selected' }}
-                    getDefaultImageUrl={() => 
-                      setting.locations[currentLocationIndex]?.name 
-                        ? getDefaultLocationImageUrl(
-                            setting.locations[currentLocationIndex]?.locationType || 'room', 
-                            setting.locations[currentLocationIndex]?.name || '', 
-                            currentLocationIndex
-                          )
-                        : ''
-                    }
+                    showFallbackInfo={true}
                   />
 
                   <div>
@@ -762,6 +876,23 @@ function SettingBuilderContent() {
                   )}
 
                 </>
+              ) : (
+                /* No Locations State */
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center py-12">
+                    <div className="text-6xl mb-4">📍</div>
+                    <h3 className="text-xl font-bold text-slate-300 mb-2">No Locations Added</h3>
+                    <p className="text-slate-400 mb-6">
+                      Settings need at least one location. Add your first location to get started.
+                    </p>
+                    <button 
+                      className="px-6 py-3 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-lg font-medium hover:from-rose-600 hover:to-pink-700 transition-all duration-300 hover:shadow-lg hover:shadow-rose-500/30"
+                      onClick={addLocation}
+                    >
+                      + Add First Location
+                    </button>
+                  </div>
+                </div>
               )}
               </div>
               
@@ -769,38 +900,34 @@ function SettingBuilderContent() {
               {setting.locations[currentLocationIndex] && (
                 <div className="mt-auto pt-6">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">Location Type</label>
-                      <select
-                        className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 text-slate-100 rounded-lg transition-all duration-200 hover:shadow-lg hover:shadow-rose-500/20 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 focus:shadow-xl focus:shadow-rose-500/30"
+                    <div className="relative z-[9999]">
+                      <LocationTypeDropdown
                         value={setting.locations[currentLocationIndex]?.locationType || 'room'}
-                        onChange={(e) => updateLocation(currentLocationIndex, { locationType: e.target.value })}
-                      >
-                        <option value="room">Room</option>
-                        <option value="building">Building</option>
-                        <option value="outdoor">Outdoor</option>
-                        <option value="landmark">Landmark</option>
-                        <option value="vehicle">Vehicle</option>
-                      </select>
+                        onChange={(value) => updateLocation(currentLocationIndex, { locationType: value })}
+                      />
                     </div>
 
-                    <TagInput
-                      label="Ambiance"
-                      value={setting.locations[currentLocationIndex]?.ambiance || []}
-                      onChange={(tags) => updateLocation(currentLocationIndex, { ambiance: tags })}
-                      placeholder="e.g., peaceful, bustling, eerie"
-                      maxTags={3}
-                      suggestions={['peaceful', 'bustling', 'eerie', 'quiet', 'lively', 'haunting', 'serene', 'chaotic', 'intimate', 'grand']}
-                    />
+                    <div className="relative z-[9999]">
+                      <TagInput
+                        label="Ambiance"
+                        value={setting.locations[currentLocationIndex]?.ambiance || []}
+                        onChange={(tags) => updateLocation(currentLocationIndex, { ambiance: tags })}
+                        placeholder="e.g., peaceful, bustling, eerie"
+                        maxTags={3}
+                        suggestions={['peaceful', 'bustling', 'eerie', 'quiet', 'lively', 'haunting', 'serene', 'chaotic', 'intimate', 'grand']}
+                      />
+                    </div>
 
-                    <TagInput
-                      label="Lighting"
-                      value={setting.locations[currentLocationIndex]?.lighting || []}
-                      onChange={(tags) => updateLocation(currentLocationIndex, { lighting: tags })}
-                      placeholder="e.g., dim candlelight, bright fluorescent"
-                      maxTags={3}
-                      suggestions={['dim', 'bright', 'candlelight', 'fluorescent', 'natural', 'warm', 'cool', 'dramatic', 'soft', 'harsh']}
-                    />
+                    <div className="relative z-[9999]">
+                      <TagInput
+                        label="Lighting"
+                        value={setting.locations[currentLocationIndex]?.lighting || []}
+                        onChange={(tags) => updateLocation(currentLocationIndex, { lighting: tags })}
+                        placeholder="e.g., dim candlelight, bright fluorescent"
+                        maxTags={3}
+                        suggestions={['dim', 'bright', 'candlelight', 'fluorescent', 'natural', 'warm', 'cool', 'dramatic', 'soft', 'harsh']}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -849,6 +976,26 @@ function SettingBuilderContent() {
                       key={location.id} 
                       className="border border-slate-600 rounded-lg p-4 hover:border-rose-500 cursor-pointer transition-colors"
                       onClick={() => {
+                        // Populate current location form with selected location data
+                        updateLocation(currentLocationIndex, {
+                          id: location.id,
+                          name: location.name,
+                          description: location.description,
+                          details: location.details,
+                          locationType: location.locationType || 'room',
+                          ambiance: location.ambiance || [],
+                          lighting: location.lighting || [],
+                          imageUrl: location.imageUrl || ''
+                        });
+                        
+                        // Set image preview if location has an image
+                        if (location.imageUrl) {
+                          setLocationImagePreviews(prev => ({
+                            ...prev,
+                            [currentLocationIndex]: location.imageUrl
+                          }));
+                        }
+                        
                         setShowLocationBrowser(false);
                       }}
                     >
@@ -876,7 +1023,7 @@ function SettingBuilderContent() {
         isOpen={showValidationModal}
         onClose={() => setShowValidationModal(false)}
         title="Required Fields Missing"
-        message="Please fill out all required fields marked with an asterisk (*) before saving."
+        message={validationMessage || "Please fill out all required fields marked with an asterisk (*) before saving."}
         icon="📝"
         type="warning"
         cancelLabel="OK"

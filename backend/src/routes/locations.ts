@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import { supabase } from '../utils/supabase-db';
+import { transformLocation, transformArray } from '../utils/field-transformer';
+import { ensureImageUrl } from '../utils/image-generator';
 
 const locations = new Hono();
 
@@ -33,27 +35,13 @@ locations.get('/', async (c) => {
     
     if (error) {
       console.error('Failed to fetch locations:', error);
-      return c.json({ error: 'Failed to fetch locations' }, 500);
+      return c.json({ success: false, error: 'Failed to fetch locations' }, 500);
     }
     
-    // Transform snake_case database fields to camelCase for frontend
-    const transformedLocations = locations?.map(location => ({
-      ...location,
-      settingId: location.setting_id,
-      createdAt: location.created_at,
-      updatedAt: location.updated_at,
-      // Transform nested settings if present
-      settings: location.settings ? {
-        ...location.settings,
-        settingType: location.settings.setting_type,
-        timeOfDay: location.settings.time_of_day,
-        imageUrl: location.settings.image_url,
-        createdAt: location.settings.created_at,
-        updatedAt: location.settings.updated_at
-      } : null
-    })) || [];
+    // Transform using centralized field transformer
+    const transformedLocations = transformArray(locations || [], transformLocation);
     
-    return c.json({ locations: transformedLocations });
+    return c.json({ success: true, data: transformedLocations });
   } catch (error) {
     console.error('Locations API error:', error);
     return c.json({ error: 'Internal server error' }, 500);
@@ -81,30 +69,16 @@ locations.get('/:id', async (c) => {
     
     if (error) {
       if (error.code === 'PGRST116') {
-        return c.json({ error: 'Location not found' }, 404);
+        return c.json({ success: false, error: 'Location not found' }, 404);
       }
       console.error('Failed to fetch location:', error);
-      return c.json({ error: 'Failed to fetch location' }, 500);
+      return c.json({ success: false, error: 'Failed to fetch location' }, 500);
     }
     
-    // Transform snake_case database fields to camelCase for frontend
-    const transformedLocation = {
-      ...location,
-      settingId: location.setting_id,
-      createdAt: location.created_at,
-      updatedAt: location.updated_at,
-      // Transform nested settings if present
-      settings: location.settings ? {
-        ...location.settings,
-        settingType: location.settings.setting_type,
-        timeOfDay: location.settings.time_of_day,
-        imageUrl: location.settings.image_url,
-        createdAt: location.settings.created_at,
-        updatedAt: location.settings.updated_at
-      } : null
-    };
+    // Transform using centralized field transformer
+    const transformedLocation = transformLocation(location);
     
-    return c.json({ location: transformedLocation });
+    return c.json({ success: true, data: transformedLocation });
   } catch (error) {
     console.error('Location by ID API error:', error);
     return c.json({ error: 'Internal server error' }, 500);
@@ -115,6 +89,24 @@ locations.get('/:id', async (c) => {
 locations.post('/', async (c) => {
   try {
     const locationData = await c.req.json();
+    console.log('Received location data:', locationData);
+    
+    // Validate required fields
+    if (!locationData.name || !locationData.description) {
+      return c.json({ 
+        error: 'Missing required fields',
+        details: 'name and description are required' 
+      }, 400);
+    }
+    
+    // Auto-generate image URL if none provided by user
+    // Only generate if no image_url was uploaded
+    if (!locationData.image_url) {
+      locationData.image_url = await ensureImageUrl({
+        name: locationData.name,
+        locationType: locationData.location_type
+      }, 'location');
+    }
     
     const { data: location, error } = await supabase
       .from('locations')
@@ -131,7 +123,12 @@ locations.post('/', async (c) => {
     
     if (error) {
       console.error('Failed to create location:', error);
-      return c.json({ error: 'Failed to create location' }, 500);
+      console.error('Location data being inserted:', locationData);
+      return c.json({ 
+        error: 'Failed to create location',
+        details: error.message,
+        code: error.code 
+      }, 500);
     }
     
     return c.json({ location }, 201);

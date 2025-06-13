@@ -47,6 +47,15 @@ settingLocations.get('/', async (c) => {
 settingLocations.post('/', async (c) => {
   try {
     const linkData = await c.req.json();
+    console.log('Received setting-location link data:', linkData);
+    
+    // Validate required fields
+    if (!linkData.setting_id || !linkData.location_id) {
+      return c.json({ 
+        error: 'Missing required fields',
+        details: 'setting_id and location_id are required' 
+      }, 400);
+    }
     
     const { data: settingLocation, error } = await supabase
       .from('setting_locations')
@@ -60,7 +69,12 @@ settingLocations.post('/', async (c) => {
     
     if (error) {
       console.error('Failed to create setting-location:', error);
-      return c.json({ error: 'Failed to create setting-location' }, 500);
+      console.error('Link data being inserted:', linkData);
+      return c.json({ 
+        error: 'Failed to create setting-location',
+        details: error.message,
+        code: error.code 
+      }, 500);
     }
     
     return c.json({ settingLocation: transformGeneric(settingLocation) }, 201);

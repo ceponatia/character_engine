@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent horizontal scrolling that would reveal hidden navigation */
+html {
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
+}
+
 /* Dark Romantic Theme Variables */
 :root {
   /* Primary Palette - Deep romantic colors */
@@ -115,6 +124,15 @@
            focus:shadow-xl focus:shadow-rose-500/30;
   }
   
+  /* Fix for select elements to ensure consistent dark styling */
+  select.input-romantic {
+    @apply bg-slate-800 border border-slate-600 text-slate-100;
+  }
+  
+  select.input-romantic option {
+    @apply bg-slate-800 text-slate-100;
+  }
+  
   .toggle-romantic {
     @apply border-2 border-slate-600 text-slate-300 font-medium px-4 py-2 rounded-lg 
            hover:border-rose-500 hover:text-rose-400 transition-all duration-200;
@@ -215,4 +233,42 @@ select:focus {
   border-color: rgba(225, 29, 72, 0.8);
   box-shadow: 0 0 0 2px rgba(225, 29, 72, 0.4);
   outline: none;
+}
+
+/* Dropdown z-index utilities for layering */
+.dropdown-layer-100 {
+  z-index: 100;
+}
+
+.dropdown-layer-110 {
+  z-index: 110;
+}
+
+.dropdown-layer-120 {
+  z-index: 120;
+}
+
+/* Hide footer on chat pages */
+body.hide-footer footer {
+  display: none !important;
+}
+
+/* Chat page specific styling */
+body.chat-page {
+  /* Optimize for mobile viewport handling */
+  height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile browsers */
+}
+
+body.chat-page main {
+  height: 100%;
+  overflow-y: auto; /* Allow scrolling if content exceeds viewport */
+}
+
+/* Responsive viewport height adjustments */
+@media (max-height: 700px) {
+  /* For shorter screens, ensure scrollability */
+  body.chat-page main {
+    min-height: 100%;
+  }
 }

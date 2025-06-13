@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import SupabaseDB from '../utils/supabase-db';
 import { transformCharacter, transformCharacterSummary, transformArray } from '../utils/field-transformer';
+import { ensureImageUrl } from '../utils/image-generator';
 import type { CharacterInsert } from '../types/supabase';
 
 const app = new Hono();
@@ -84,7 +85,7 @@ app.post('/', zValidator('json', createCharacterSchema), async (c) => {
       attire: characterBio.presentation?.visualAvatar?.attire,
       colors: characterBio.presentation?.visualAvatar?.colors || [],
       features: characterBio.presentation?.visualAvatar?.features,
-      avatar_image: characterBio.presentation?.visualAvatar?.avatarImage,
+      image_url: characterBio.presentation?.visualAvatar?.avatarImage,
       
       // Vocal Style
       tone: characterBio.presentation?.vocalStyle?.tone || [],
@@ -123,6 +124,15 @@ app.post('/', zValidator('json', createCharacterSchema), async (c) => {
       interaction_policy: characterBio.boundaries?.interactionPolicy,
       conflict_resolution: characterBio.boundaries?.conflictResolution,
     };
+
+    // Auto-generate image URL if none provided by user
+    // Only generate if no image_url was uploaded
+    if (!characterData.image_url) {
+      characterData.image_url = await ensureImageUrl({
+        name: characterData.name,
+        settingType: characterData.archetype // Use archetype as character "type"
+      }, 'character');
+    }
 
     const character = await SupabaseDB.createCharacter(characterData);
 

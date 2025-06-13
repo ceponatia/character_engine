@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import { supabase } from '../utils/supabase-db';
+import { ensureImageUrl } from '../utils/image-generator';
+import { transformSetting, transformArray } from '../utils/field-transformer';
 
 const settings = new Hono();
 
@@ -24,15 +26,8 @@ settings.get('/', async (c) => {
       return c.json({ error: 'Failed to fetch settings' }, 500);
     }
     
-    // Transform snake_case database fields to camelCase for frontend
-    const transformedSettings = settings?.map(setting => ({
-      ...setting,
-      imageUrl: setting.image_url,
-      settingType: setting.setting_type,
-      timeOfDay: setting.time_of_day,
-      createdAt: setting.created_at,
-      updatedAt: setting.updated_at
-    })) || [];
+    // Transform using centralized transformer
+    const transformedSettings = transformArray(settings || [], transformSetting);
     
     return c.json({ settings: transformedSettings });
   } catch (error) {
@@ -66,23 +61,8 @@ settings.get('/:id', async (c) => {
       return c.json({ error: 'Failed to fetch setting' }, 500);
     }
     
-    // Transform snake_case database fields to camelCase for frontend
-    const transformedSetting = {
-      ...setting,
-      imageUrl: setting.image_url,
-      settingType: setting.setting_type,
-      timeOfDay: setting.time_of_day,
-      createdAt: setting.created_at,
-      updatedAt: setting.updated_at,
-      // Transform the many-to-many relationship to simple locations array
-      locations: setting.setting_locations?.map((sl: any) => ({
-        ...sl.locations,
-        // Transform location fields to camelCase
-        settingId: sl.locations.setting_id,
-        createdAt: sl.locations.created_at,
-        updatedAt: sl.locations.updated_at
-      })) || []
-    };
+    // Transform using centralized transformer
+    const transformedSetting = transformSetting(setting);
     
     return c.json({ setting: transformedSetting });
   } catch (error) {
@@ -95,6 +75,15 @@ settings.get('/:id', async (c) => {
 settings.post('/', async (c) => {
   try {
     const settingData = await c.req.json();
+    
+    // Auto-generate image URL if none provided by user
+    // Only generate if no image_url was uploaded
+    if (!settingData.image_url) {
+      settingData.image_url = await ensureImageUrl({
+        name: settingData.name,
+        settingType: settingData.setting_type
+      }, 'setting');
+    }
     
     const { data: setting, error } = await supabase
       .from('settings')

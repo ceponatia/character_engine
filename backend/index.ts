@@ -5,15 +5,17 @@ import { serveStatic } from 'hono/bun';
 import * as dotenv from 'dotenv';
 import characterRoutes from './src/routes/characters';
 import emergencyRoutes from './src/routes/emergency';
-import chatSessionRoutes from './src/routes/chat-sessions';
+import storiesRoutes from './src/routes/stories';
 import settingsRoutes from './src/routes/settings';
 import locationsRoutes from './src/routes/locations';
 import settingLocationsRoutes from './src/routes/setting-locations';
+import uploadRoutes from './src/routes/upload';
+import authRoutes from './src/routes/auth';
 import { healthCheck } from './src/utils/supabase-db';
 import { getResourceUsage } from './src/middleware/llm-safety';
 import { requestIdMiddleware } from './src/middleware/error-handler';
 import { moderateRateLimit } from './src/middleware/rate-limit';
-import { optionalAuthMiddleware } from './src/middleware/auth';
+import { authMiddleware } from './src/middleware/auth-middleware';
 
 dotenv.config();
 
@@ -27,17 +29,17 @@ app.use('*', logger());
 // Enhanced CORS configuration - more permissive for development
 app.use('*', cors({
   origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001'],
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
-  credentials: false, // Temporarily disable for testing
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'X-User-ID'],
+  credentials: true, // Enable for cookie-based authentication
   maxAge: 3600
 }));
 
 // Temporarily disable rate limiting for development
 // app.use('*', moderateRateLimit);
 
-// Optional authentication disabled for now to fix API access
-// app.use('*', optionalAuthMiddleware);
+// Apply authentication middleware to extract user from cookies
+app.use('*', authMiddleware);
 
 // Health check endpoint with Supabase status and safety metrics
 app.get('/health', async (c) => {
@@ -64,21 +66,23 @@ app.get('/health', async (c) => {
 });
 
 // API Routes
+app.route('/api/auth', authRoutes);
 app.route('/api/characters', characterRoutes);
 app.route('/api/emergency', emergencyRoutes);
-app.route('/api/chat-sessions', chatSessionRoutes);
+app.route('/api/stories', storiesRoutes);
 app.route('/api/settings', settingsRoutes);
 app.route('/api/locations', locationsRoutes);
 app.route('/api/setting-locations', settingLocationsRoutes);
-// app.route('/api/upload', uploadRoutes);
+app.route('/api/upload', uploadRoutes);
 
-// Serve uploaded files (for future implementation)
-// app.use('/uploads/*', serveStatic({ root: './uploads' }));
+// Serve static images
+app.use('/uploads/*', serveStatic({ root: './uploads' }));
+app.use('/images/*', serveStatic({ root: './uploads' })); // Alias for easier access
 
 console.log(`🚀 Hono + Bun server starting on port ${PORT}`);
 console.log(`💚 Health check: http://localhost:${PORT}/health`);
 console.log(`👥 Characters API: http://localhost:${PORT}/api/characters`);
-console.log(`💬 Chat Sessions API: http://localhost:${PORT}/api/chat-sessions`);
+console.log(`📚 Stories API: http://localhost:${PORT}/api/stories`);
 console.log(`⚙️  Settings API: http://localhost:${PORT}/api/settings`);
 console.log(`📍 Locations API: http://localhost:${PORT}/api/locations`);
 console.log(`🚨 Emergency API: http://localhost:${PORT}/api/emergency/status`);

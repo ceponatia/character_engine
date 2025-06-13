@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getApiUrl } from '../utils/api-config';
+import { getCharacterAvatar, getSettingImage, truncateText, parseThemeField } from '../utils/helpers';
+import { ThemeTag } from '../components/UI/TagBubble';
+import { BackButton } from '../components/UI/ActionButtons';
 
 interface Character {
   id: string;
@@ -11,6 +14,7 @@ interface Character {
   archetype: string;
   description: string;
   defaultIntroMessage?: string;
+  imageUrl?: string;
 }
 
 interface Setting {
@@ -37,10 +41,6 @@ export default function StoryConfig() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingStory, setIsCreatingStory] = useState(false);
 
-  const truncateText = (text: string, maxLength: number) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength).trim() + '...';
-  };
 
   // Fetch characters and settings
   useEffect(() => {
@@ -104,8 +104,8 @@ export default function StoryConfig() {
     
     setIsCreatingStory(true);
     try {
-      // Create chat session
-      const response = await fetch(getApiUrl('/api/chat-sessions'), {
+      // Create story
+      const response = await fetch(getApiUrl('/api/stories'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -115,7 +115,8 @@ export default function StoryConfig() {
           characters: selectedCharacters.map(sc => ({
             characterId: sc.character.id,
             introMessage: sc.introMessage
-          }))
+          })),
+          userName: 'User' // Default user name until we implement accounts
         })
       });
 
@@ -123,7 +124,7 @@ export default function StoryConfig() {
         const data = await response.json();
         // Add a small delay to ensure database transaction commits
         setTimeout(() => {
-          router.push(`/chat/${data.session.id}`);
+          router.push(`/stories/${data.story.id}/chat`);
         }, 500); // 500ms delay
       } else {
         const errorData = await response.json();
@@ -131,7 +132,7 @@ export default function StoryConfig() {
         setIsCreatingStory(false);
       }
     } catch (error) {
-      console.error('Error creating chat session:', error);
+      console.error('Error creating story:', error);
       alert('Failed to create story. Please try again.');
       setIsCreatingStory(false);
     }
@@ -139,217 +140,272 @@ export default function StoryConfig() {
 
   if (isLoading) {
     return (
-      <div className="story-config-container">
-        <div className="card">
-          <div className="empty-state">
-            <div className="icon">⏳</div>
-            <p>Loading characters and settings...</p>
-          </div>
+      <div className="min-h-screen bg-romantic-gradient flex items-center justify-center">
+        <div className="card-romantic p-8 text-center">
+          <div className="text-5xl mb-4">⏳</div>
+          <h3 className="text-xl font-bold text-slate-100 mb-2">Loading Story Configuration</h3>
+          <p className="text-slate-400">Fetching characters and settings...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="story-config-container">
-      <div className="story-config-header">
-        <h1>✨ Configure Your Story</h1>
-        <p>Select characters, choose a setting, and customize intro messages</p>
-        <Link href="/" className="btn btn-outline">
-          ← Back to Home
-        </Link>
-      </div>
+    <div className="min-h-screen bg-romantic-gradient">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8">
+            <div>
+              <div className="mb-4">
+                <BackButton />
+              </div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-rose-400 to-pink-400 bg-clip-text text-transparent mb-2">
+                ✨ Configure Your Story
+              </h1>
+              <p className="text-slate-400">
+                Select characters, choose a setting, and customize intro messages
+              </p>
+            </div>
+          </div>
+        </div>
 
-      <div className="story-config-content">
-        {/* Setting Selection */}
-        <div className="config-section">
-          <div className="section-header">
-            <h2>🏰 Choose Setting</h2>
-            <div className="section-actions">
-              <Link href="/settings" className="btn btn-outline btn-small">
-                Browse All Settings
-              </Link>
-              <Link href="/setting-builder" className="btn btn-primary btn-small">
-                Create New Setting
-              </Link>
+        <div className="max-w-6xl mx-auto space-y-8">
+          {/* Setting Selection */}
+          <div className="card-romantic p-6">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+              <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
+                🏰 Choose Setting
+              </h2>
+              <div className="flex gap-3">
+                <Link href="/settings" className="btn-romantic-outline">
+                  Browse All Settings
+                </Link>
+                <Link href="/setting-builder" className="btn-romantic-primary">
+                  Create New Setting
+                </Link>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <label htmlFor="settingSelect" className="block text-sm font-medium text-slate-300 mb-2">
+                  Select a Setting *
+                </label>
+                <select
+                  id="settingSelect"
+                  className="input-romantic w-full"
+                  value={selectedSetting?.id || ''}
+                  onChange={(e) => {
+                    const setting = settings.find(s => s.id === e.target.value);
+                    setSelectedSetting(setting || null);
+                  }}
+                >
+                  <option value="">Choose a setting...</option>
+                  {settings.map((setting) => (
+                    <option key={setting.id} value={setting.id}>
+                      {setting.name} - {
+                        Array.isArray(setting.theme) 
+                          ? setting.theme.map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join(', ')
+                          : parseThemeField(setting.theme) || setting.settingType || 'General'
+                      }
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedSetting && (
+                <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
+                  <div className="flex gap-4">
+                    <div className="w-24 h-24 flex-shrink-0 rounded-lg overflow-hidden bg-slate-700/50 flex items-center justify-center">
+                      <img 
+                        src={getSettingImage(selectedSetting)} 
+                        alt={selectedSetting.name}
+                        className="w-full h-full object-cover" 
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold text-slate-100 mb-2">
+                        {truncateText(selectedSetting.name, 30)}
+                      </h3>
+                      <p className="text-slate-300 mb-3">
+                        {truncateText(selectedSetting.description, 100)}
+                      </p>
+                      {selectedSetting.theme && (
+                        <ThemeTag>
+                          {Array.isArray(selectedSetting.theme) 
+                            ? selectedSetting.theme.map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join(', ')
+                            : parseThemeField(selectedSetting.theme)
+                          }
+                        </ThemeTag>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {settings.length === 0 && (
+                <div className="text-center py-12">
+                  <div className="text-5xl mb-4">🏰</div>
+                  <h3 className="text-xl font-bold text-slate-100 mb-2">No settings available</h3>
+                  <p className="text-slate-400 mb-6">Create your first setting to begin</p>
+                  <Link href="/setting-builder" className="btn-romantic-primary">
+                    Create Your First Setting
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="setting-selection">
-            <div className="form-group">
-              <label htmlFor="settingSelect">Select a Setting *</label>
-              <select
-                id="settingSelect"
-                className="form-select"
-                value={selectedSetting?.id || ''}
-                onChange={(e) => {
-                  const setting = settings.find(s => s.id === e.target.value);
-                  setSelectedSetting(setting || null);
-                }}
-              >
-                <option value="">Choose a setting...</option>
-                {settings.map((setting) => (
-                  <option key={setting.id} value={setting.id}>
-                    {setting.name} - {Array.isArray(setting.theme) ? setting.theme.join(', ') : setting.theme || setting.settingType || 'General'}
-                  </option>
-                ))}
-              </select>
+          {/* Character Selection */}
+          <div className="card-romantic p-6">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+              <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
+                💕 Select Characters
+              </h2>
+              <div className="flex gap-3">
+                <Link href="/characters" className="btn-romantic-outline">
+                  Browse All Characters
+                </Link>
+                <Link href="/character-builder" className="btn-romantic-primary">
+                  Create New Character
+                </Link>
+              </div>
             </div>
 
-            {selectedSetting && (
-              <div className="selected-setting-preview">
-                <div className="setting-preview-card">
-                  <div className="setting-image">
-                    {selectedSetting.imageUrl ? (
-                      <img src={selectedSetting.imageUrl} alt={selectedSetting.name} />
-                    ) : (
-                      <div className="placeholder-image">🏰</div>
-                    )}
-                  </div>
-                  <div className="setting-info">
-                    <h3>{truncateText(selectedSetting.name, 30)}</h3>
-                    <p>{truncateText(selectedSetting.description, 100)}</p>
-                    {selectedSetting.theme && (
-                      <span className="setting-tag">Theme: {truncateText(Array.isArray(selectedSetting.theme) ? selectedSetting.theme.join(', ') : selectedSetting.theme, 20)}</span>
-                    )}
-                  </div>
+            {/* Available Characters */}
+            {characters.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-slate-100">Available Characters</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                  {characters
+                    .filter(char => !selectedCharacters.find(sc => sc.character.id === char.id))
+                    .slice(0, 6)
+                    .map((character) => (
+                    <div 
+                      key={character.id} 
+                      className="relative group cursor-pointer bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 hover:border-rose-500/50 hover:bg-slate-700/50 transition-all duration-200"
+                      onClick={() => addCharacter(character)}
+                    >
+                      <div className="relative mb-3">
+                        <img 
+                          src={getCharacterAvatar(character)}
+                          alt={character.name}
+                          className="w-full h-20 object-cover rounded-lg"
+                        />
+                        <div className="absolute inset-0 bg-rose-600/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
+                          <span className="text-white font-medium">+ Add</span>
+                        </div>
+                      </div>
+                      <h4 className="text-sm font-medium text-slate-100 mb-1">
+                        {truncateText(character.name, 15)}
+                      </h4>
+                      <p className="text-xs text-slate-400">
+                        {truncateText(character.archetype, 20)}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
-            {settings.length === 0 && (
-              <div className="empty-state">
-                <div className="icon">🏰</div>
-                <p>No settings available</p>
-                <Link href="/setting-builder" className="btn btn-primary">
-                  Create Your First Setting
+            {/* Selected Characters with Intro Messages */}
+            {selectedCharacters.length > 0 && (
+              <div className="space-y-4 mt-8">
+                <h3 className="text-lg font-semibold text-slate-100">
+                  Selected Characters ({selectedCharacters.length})
+                </h3>
+                <div className="space-y-4">
+                  {selectedCharacters.map((charConfig) => (
+                    <div key={charConfig.character.id} className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6">
+                      <div className="flex items-center gap-4 mb-4">
+                        <img 
+                          src={getCharacterAvatar(charConfig.character)}
+                          alt={charConfig.character.name}
+                          className="w-16 h-16 object-cover rounded-lg"
+                        />
+                        <div className="flex-1">
+                          <h4 className="text-lg font-medium text-slate-100">
+                            {truncateText(charConfig.character.name, 20)}
+                          </h4>
+                          <p className="text-slate-400">
+                            {truncateText(charConfig.character.archetype, 25)}
+                          </p>
+                        </div>
+                        <button 
+                          className="btn-romantic-outline"
+                          onClick={() => removeCharacter(charConfig.character.id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                          Intro Message (optional)
+                        </label>
+                        <textarea
+                          className="input-romantic w-full"
+                          rows={3}
+                          placeholder={`What does ${charConfig.character.name} say when the story begins?`}
+                          value={charConfig.introMessage}
+                          onChange={(e) => updateIntroMessage(charConfig.character.id, e.target.value)}
+                        />
+                        <p className="text-sm text-slate-500 mt-1">
+                          {charConfig.introMessage.trim() ? 
+                            `${charConfig.character.name} will speak when the story begins` :
+                            `${charConfig.character.name} will remain silent until spoken to`
+                          }
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedCharacters.length === 0 && characters.length > 0 && (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-3">💭</div>
+                <h3 className="text-lg font-medium text-slate-100 mb-2">No characters selected</h3>
+                <p className="text-slate-400">Choose characters from the list above</p>
+              </div>
+            )}
+
+            {characters.length === 0 && (
+              <div className="text-center py-12">
+                <div className="text-5xl mb-4">💭</div>
+                <h3 className="text-xl font-bold text-slate-100 mb-2">No characters available</h3>
+                <p className="text-slate-400 mb-6">Create your first character to begin</p>
+                <Link href="/character-builder" className="btn-romantic-primary">
+                  Create Your First Character
                 </Link>
               </div>
             )}
           </div>
-        </div>
 
-        {/* Character Selection */}
-        <div className="config-section">
-          <div className="section-header">
-            <h2>💕 Select Characters</h2>
-            <div className="section-actions">
-              <Link href="/characters" className="btn btn-outline btn-small">
-                Browse All Characters
-              </Link>
-              <Link href="/character-builder" className="btn btn-primary btn-small">
-                Create New Character
-              </Link>
-            </div>
-          </div>
-
-          {/* Available Characters */}
-          {characters.length > 0 && (
-            <div className="available-characters">
-              <h3>Available Characters</h3>
-              <div className="characters-grid">
-                {characters
-                  .filter(char => !selectedCharacters.find(sc => sc.character.id === char.id))
-                  .slice(0, 6)
-                  .map((character) => (
-                  <div 
-                    key={character.id} 
-                    className="character-card selectable"
-                    onClick={() => addCharacter(character)}
-                  >
-                    <div className="character-image">
-                      <img 
-                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${character.name}`}
-                        alt={character.name}
-                      />
-                      <div className="character-overlay">
-                        <span>+ Add</span>
-                      </div>
-                    </div>
-                    <div className="character-info">
-                      <h3>{truncateText(character.name, 20)}</h3>
-                      <p>{truncateText(character.archetype, 25)}</p>
-                    </div>
-                  </div>
-                ))}
+          {/* Begin Chat */}
+          <div className="text-center space-y-4">
+            {!canBeginChat() && (
+              <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-4">
+                <p className="text-amber-400 font-medium">
+                  {!selectedSetting && "Please select a setting"}
+                  {selectedSetting && selectedCharacters.length === 0 && "Please select at least one character"}
+                  {selectedSetting && selectedCharacters.length > 0 && 
+                   !selectedCharacters.some(sc => sc.introMessage.trim()) && 
+                   "At least one character needs an intro message"}
+                </p>
               </div>
-            </div>
-          )}
-
-          {/* Selected Characters with Intro Messages */}
-          {selectedCharacters.length > 0 && (
-            <div className="selected-characters">
-              <h3>Selected Characters ({selectedCharacters.length})</h3>
-              {selectedCharacters.map((charConfig) => (
-                <div key={charConfig.character.id} className="character-config">
-                  <div className="character-summary">
-                    <div className="character-image">
-                      <img 
-                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${charConfig.character.name}`}
-                        alt={charConfig.character.name}
-                      />
-                    </div>
-                    <div className="character-info">
-                      <h4>{truncateText(charConfig.character.name, 20)}</h4>
-                      <p>{truncateText(charConfig.character.archetype, 25)}</p>
-                    </div>
-                    <button 
-                      className="btn btn-outline btn-small"
-                      onClick={() => removeCharacter(charConfig.character.id)}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                  
-                  <div className="intro-message-config">
-                    <label>Intro Message (optional)</label>
-                    <textarea
-                      className="form-textarea"
-                      rows={3}
-                      placeholder={`What does ${charConfig.character.name} say when the story begins?`}
-                      value={charConfig.introMessage}
-                      onChange={(e) => updateIntroMessage(charConfig.character.id, e.target.value)}
-                    />
-                    <p className="field-note">
-                      {charConfig.introMessage.trim() ? 
-                        `${charConfig.character.name} will speak when the story begins` :
-                        `${charConfig.character.name} will remain silent until spoken to`
-                      }
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {selectedCharacters.length === 0 && (
-            <div className="empty-state">
-              <div className="icon">💭</div>
-              <p>No characters selected</p>
-              <p className="text-sm">Choose characters from the list above</p>
-            </div>
-          )}
-        </div>
-
-        {/* Begin Chat */}
-        <div className="config-actions">
-          {!canBeginChat() && (
-            <div className="validation-message">
-              {!selectedSetting && "Please select a setting"}
-              {selectedSetting && selectedCharacters.length === 0 && "Please select at least one character"}
-              {selectedSetting && selectedCharacters.length > 0 && 
-               !selectedCharacters.some(sc => sc.introMessage.trim()) && 
-               "At least one character needs an intro message"}
-            </div>
-          )}
-          
-          <button 
-            className="btn btn-primary btn-large"
-            onClick={beginChat}
-            disabled={!canBeginChat() || isCreatingStory}
-          >
-            {isCreatingStory ? '⏳ Creating Story...' : '✨ Begin Story'}
-          </button>
+            )}
+            
+            <button 
+              className="btn-romantic-primary text-xl px-12 py-4"
+              onClick={beginChat}
+              disabled={!canBeginChat() || isCreatingStory}
+            >
+              {isCreatingStory ? '⏳ Creating Story...' : '✨ Begin Story'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

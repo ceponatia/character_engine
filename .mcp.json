@@ -1,3 +1,28 @@
 {
-  "mcpServers": {}
-}
+  "mcpServers": {
+    "Context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
+    },
+    "supabase": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--access-token",
+        "sbp_16a6a658653f375c43e1bedca35ab62fcd5bc583"
+      ],
+      "env": {}
+    },
+     "koboldcpp": {
+      "type": "stdio", 
+      "command": "koboldcpp-mcp",
+      "args": ["server", "--kobold-url", "http://localhost:5001"]
+    }
+  }
+  }

@@ -7,7 +7,7 @@ import { truncateText } from './utils/helpers';
 import LibraryCard from './components/UI/LibraryCard';
 
 
-interface ChatSession {
+interface Story {
   id: string;
   name: string;
   lastActivity: string;
@@ -26,7 +26,7 @@ interface ChatSession {
 }
 
 export default function Home() {
-  const [activeSessions, setActiveSessions] = useState<ChatSession[]>([]);
+  const [activeStories, setActiveStories] = useState<Story[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [storiesSearchTerm, setStoriesSearchTerm] = useState('');
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -35,11 +35,11 @@ export default function Home() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Fetch active chat sessions
-        const sessionsRes = await fetch(getApiUrl('/api/chat-sessions?limit=8'));
-        if (sessionsRes.ok) {
-          const sessionsData = await sessionsRes.json();
-          setActiveSessions(sessionsData.sessions || []);
+        // Fetch active stories
+        const storiesRes = await fetch(getApiUrl('/api/stories?limit=8'));
+        if (storiesRes.ok) {
+          const storiesData = await storiesRes.json();
+          setActiveStories(storiesData.stories || []);
         }
 
       } catch (error) {
@@ -120,7 +120,7 @@ export default function Home() {
       {/* Dashboard Sections */}
       <div className="max-w-6xl mx-auto space-y-12 px-8">
         {/* Active Sessions */}
-        {activeSessions.length > 0 && (
+        {activeStories.length > 0 && (
           <div className="space-y-6">
             <div className="mb-6">
               <h2 className="text-slate-100 text-2xl font-bold mb-6">🌟 Continue Your Stories</h2>
@@ -139,27 +139,27 @@ export default function Home() {
                 href="/library?type=stories" 
                 className="px-4 py-2 rounded-lg font-medium text-sm border border-slate-600 text-slate-300 hover:border-rose-500 hover:text-rose-400 transition-all duration-300 hover:shadow-lg hover:shadow-rose-500/20 whitespace-nowrap"
               >
-                View All Sessions
+                View All Stories
               </Link>
             </div>
             <div className="grid grid-cols-4 gap-6 p-4">
-              {activeSessions.filter(session =>
-                session.name.toLowerCase().includes(storiesSearchTerm.toLowerCase()) ||
-                session.characters?.name.toLowerCase().includes(storiesSearchTerm.toLowerCase()) ||
-                session.settings?.name.toLowerCase().includes(storiesSearchTerm.toLowerCase())
-              ).map((session) => {
+              {activeStories.filter(story =>
+                story.name.toLowerCase().includes(storiesSearchTerm.toLowerCase()) ||
+                story.character?.name.toLowerCase().includes(storiesSearchTerm.toLowerCase()) ||
+                story.setting?.name.toLowerCase().includes(storiesSearchTerm.toLowerCase())
+              ).map((story) => {
                 // Generate story image based on setting type and theme
-                const storyImage = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(session.name)}&backgroundColor=1e293b,be123c,9333ea`;
+                const storyImage = `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(story.name)}&backgroundColor=1e293b,be123c,9333ea`;
                 
                 return (
                   <LibraryCard
-                    key={session.id}
+                    key={story.id}
                     image={storyImage}
-                    title={session.name}
-                    subtitle={`Character: ${session.character?.name || 'Unknown'}`}
-                    tags={[session.setting?.settingType || 'Story', session.setting?.theme || 'Adventure']}
-                    createdAt={session.createdAt || session.lastActivity}
-                    href={`/stories/${session.id}`}
+                    title={story.name}
+                    subtitle={`Character: ${story.character?.name || 'Unknown'}`}
+                    tags={[story.setting?.settingType || 'Story', story.setting?.theme || 'Adventure']}
+                    createdAt={story.createdAt || story.lastActivity}
+                    href={`/stories/${story.id}/chat`}
                   />
                 );
               })}
